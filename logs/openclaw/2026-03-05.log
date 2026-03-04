@@ -1,0 +1,173 @@
+# OpenClaw daily read-only checks (2026-03-05)
+Timestamp: 2026-03-05T00:11:08+1000
+
+## openclaw security audit
+OpenClaw security audit
+Summary: 0 critical · 1 warn · 1 info
+Run deeper: openclaw security audit --deep
+
+WARN
+security.trust_model.multi_user_heuristic Potential multi-user setup detected (personal-assistant model warning)
+  Heuristic signals indicate this gateway may be reachable by multiple users:
+- channels.telegram.groupPolicy="allowlist" with configured group targets
+- channels.discord.groupPolicy="allowlist" with configured group targets
+Runtime/process tools are exposed without full sandboxing in at least one context.
+Potential high-impact tool exposure contexts:
+- agents.defaults (sandbox=off; runtime=[exec, process]; fs=[read, write, edit, apply_patch]; fs.workspaceOnly=false)
+- agents.list.main (sandbox=off; runtime=[exec, process]; fs=[read, write, edit, apply_patch]; fs.workspaceOnly=false)
+- agents.list.tech_geek (sandbox=off; runtime=[exec, process]; fs=[read, write, edit, apply_patch]; fs.workspaceOnly=false)
+- agents.list.travel_assistant (sandbox=off; runtime=[exec, process]; fs=[read, write, edit, apply_patch]; fs.workspaceOnly=false)
+- agents.list.finance_assistant (sandbox=off; runtime=[exec, process]; fs=[read, write, edit, apply_patch]; fs.workspaceOnly=false)
+- agents.list.interpreter (sandbox=off; runtime=[exec, process]; fs=[read, write, edit, apply_patch]; fs.workspaceOnly=false)
+OpenClaw's default security model is personal-assistant (one trusted operator boundary), not hostile multi-tenant isolation on one shared gateway.
+  Fix: If users may be mutually untrusted, split trust boundaries (separate gateways + credentials, ideally separate OS users/hosts). If you intentionally run shared-user access, set agents.defaults.sandbox.mode="all", keep tools.fs.workspaceOnly=true, deny runtime/fs/web tools unless required, and keep personal/private identities + credentials off that runtime.
+
+INFO
+summary.attack_surface Attack surface summary
+  groups: open=0, allowlist=2
+tools.elevated: enabled
+hooks.webhooks: disabled
+hooks.internal: enabled
+browser control: enabled
+trust model: personal assistant (one trusted operator boundary), not hostile multi-tenant on one shared gateway
+
+## openclaw update status
+OpenClaw update status
+
+┌──────────┬──────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Item     │ Value                                                                                                    │
+├──────────┼──────────────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Install  │ pnpm                                                                                                     │
+│ Channel  │ stable (default)                                                                                         │
+│ Update   │ pnpm · npm latest 2026.3.2                                                                               │
+└──────────┴──────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+
+## openclaw status --deep (if supported)
+OpenClaw status
+
+Overview
+┌─────────────────┬───────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Item            │ Value                                                                                             │
+├─────────────────┼───────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Dashboard       │ http://127.0.0.1:18789/                                                                           │
+│ OS              │ macos 26.3 (arm64) · node 25.6.0                                                                  │
+│ Tailscale       │ off                                                                                               │
+│ Channel         │ stable (default)                                                                                  │
+│ Update          │ pnpm · npm latest 2026.3.2                                                                        │
+│ Gateway         │ local · ws://127.0.0.1:18789 (local loopback) · reachable 9ms · auth [REDACTED]
+│                 │ app 2026.3.1 macos 26.3                                                                           │
+│ Gateway service │ LaunchAgent installed · loaded · running (pid 49113, state active)                                │
+│ Node service    │ LaunchAgent not installed                                                                         │
+│ Agents          │ 5 · 4 bootstrap files present · sessions 69 · default main active 1m ago                          │
+│ Memory          │ 15 files · 47 chunks · sources memory · plugin memory-core · vector ready · fts ready · cache on  │
+│                 │ (92)                                                                                              │
+│ Probes          │ enabled                                                                                           │
+│ Events          │ none                                                                                              │
+│ Heartbeat       │ 1h (main), disabled (finance_assistant), disabled (interpreter), disabled (tech_geek), disabled   │
+│                 │ (travel_assistant)                                                                                │
+│ Last heartbeat  │ skipped · 41m ago ago · unknown                                                                   │
+│ Sessions        │ 69 active · default gpt-5.2 (66k ctx) · 5 stores                                                  │
+└─────────────────┴───────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+Security audit
+Summary: 0 critical · 1 warn · 1 info
+  WARN Potential multi-user setup detected (personal-assistant model warning)
+    Heuristic signals indicate this gateway may be reachable by multiple users: - channels.telegram.groupPolicy="allowlist" with configured group targets - channel…
+    Fix: If users may be mutually untrusted, split trust boundaries (separate gateways + credentials, ideally separate OS users/hosts). If you intentionally run shared-user access, set agents.defaults.sandbox.mode="all", keep tools.fs.workspaceOnly=true, deny runtime/fs/web tools unless required, and keep personal/private identities + credentials off that runtime.
+Full report: openclaw security audit
+Deep probe: openclaw security audit --deep
+
+Channels
+┌──────────┬─────────┬────────┬───────────────────────────────────────────────────────────────────────────────────────┐
+│ Channel  │ Enabled │ State  │ Detail                                                                                │
+├──────────┼─────────┼────────┼───────────────────────────────────────────────────────────────────────────────────────┤
+│ Telegram │ ON      │ WARN   │ [REDACTED]
+│          │         │        │ unmentioned group messages (requireMention=false). Telegram Bot API p…                │
+│ Discord  │ ON      │ OK     │ [REDACTED]
+└──────────┴─────────┴────────┴───────────────────────────────────────────────────────────────────────────────────────┘
+
+Sessions
+┌─────────────────────────────────────────────────┬────────┬─────────┬──────────────┬─────────────────────────────────┐
+│ Key                                             │ Kind   │ Age     │ Model        │ [REDACTED]
+├─────────────────────────────────────────────────┼────────┼─────────┼──────────────┼─────────────────────────────────┤
+│ agent:main:main                                 │ direct │ 1m ago  │ gpt-5.2      │ 13k/66k (20%) · 🗄️ 98% cached   │
+│ agent:main:cron:854528cb-5eb3-4…                │ direct │ 6m ago  │ gpt-5.2      │ 27k/66k (41%) · 🗄️ 391% cached  │
+│ agent:main:cron:854528cb-5eb3-4…                │ direct │ 6m ago  │ gpt-5.2      │ 27k/66k (41%) · 🗄️ 391% cached  │
+│ agent:main:cron:49105f50-5689-4…                │ direct │ 45m ago │ gpt-5.2      │ 14k/66k (21%) · 🗄️ 460% cached  │
+│ agent:main:cron:49105f50-5689-4…                │ direct │ 45m ago │ gpt-5.2      │ 14k/66k (21%) · 🗄️ 460% cached  │
+│ agent:main:cron:49105f50-5689-4…                │ direct │ 2h ago  │ gpt-5.2      │ 14k/66k (21%) · 🗄️ 460% cached  │
+│ agent:main:cron:49105f50-5689-4…                │ direct │ 3h ago  │ gpt-5.2      │ 14k/66k (21%) · 🗄️ 363% cached  │
+│ agent:main:cron:49105f50-5689-4…                │ direct │ 4h ago  │ gpt-5.2      │ 14k/66k (21%) · 🗄️ 364% cached  │
+│ agent:main:cron:49105f50-5689-4…                │ direct │ 5h ago  │ gpt-5.2      │ 14k/66k (21%) · 🗄️ 478% cached  │
+│ agent:travel_assistant:telegram…                │ group  │ 5h ago  │ gpt-5.2      │ 149k/66k (228%) · 🗄️ 46% cached │
+└─────────────────────────────────────────────────┴────────┴─────────┴──────────────┴─────────────────────────────────┘
+
+Health
+┌──────────┬───────────┬──────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Item     │ Status    │ Detail                                                                                       │
+├──────────┼───────────┼──────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Gateway  │ reachable │ 2533ms                                                                                       │
+│ Telegram │ OK        │ ok (@deng_openclaw_bot:default:1844ms)                                                       │
+│ Discord  │ OK        │ ok (@openclaw:default:688ms)                                                                 │
+└──────────┴───────────┴──────────────────────────────────────────────────────────────────────────────────────────────┘
+
+FAQ: https://docs.openclaw.ai/faq
+Troubleshooting: https://docs.openclaw.ai/troubleshooting
+
+Next steps:
+  Need to share?      openclaw status --all
+  Need to debug live? openclaw logs --follow
+  Need to test channels? openclaw status --deep
+
+## basic system checks
+### disk
+Filesystem        Size    Used   Avail Capacity iused ifree %iused  Mounted on
+/dev/disk7s2s1   3.6Ti    11Gi   689Gi     2%    453k  4.3G    0%   /
+devfs            235Ki   235Ki     0Bi   100%     814     0  100%   /dev
+/dev/disk7s5     3.6Ti   4.0Gi   689Gi     1%       4  7.2G    0%   /System/Volumes/VM
+/dev/disk7s3     3.6Ti   7.8Gi   689Gi     2%    1.4k  7.2G    0%   /System/Volumes/Preboot
+/dev/disk7s6     3.6Ti    96Ki   689Gi     1%      20  7.2G    0%   /System/Volumes/Update
+/dev/disk1s2     500Mi   6.0Mi   389Mi     2%       1  4.0M    0%   /System/Volumes/xarts
+/dev/disk1s1     500Mi    53Mi   389Mi    12%      68  4.0M    0%   /System/Volumes/iSCPreboot
+/dev/disk1s3     500Mi   688Ki   389Mi     1%      76  4.0M    0%   /System/Volumes/Hardware
+/dev/disk7s1     3.6Ti   2.9Ti   689Gi    82%    3.7M  7.2G    0%   /System/Volumes/Data
+/dev/disk3s1     228Gi    10Gi   176Gi     6%    410k  1.8G    0%   /Volumes/Macintosh HD
+/dev/disk3s5     228Gi    36Gi   176Gi    17%    348k  1.8G    0%   /Volumes/Data
+map auto_home      0Bi     0Bi     0Bi   100%       0     0     -   /System/Volumes/Data/home
+/dev/disk9s1     4.0Mi   676Ki   3.0Mi    19%      18   31k    0%   /System/Library/AssetsV2/com_apple_MobileAsset_PKITrustStore/purpose_auto/6dd55b0d06633a00de6f57ccb910a66a5ba2409a.asset/.AssetData
+/dev/disk11s1    216Mi   203Mi    12Mi    95%      30  122k    0%   /System/Library/AssetsV2/com_apple_MobileAsset_UAF_IF_Planner/purpose_auto/f52c68f27c3be60aba0c0092b0324febd8fd472d.asset/.AssetData
+/dev/disk3s4     228Gi   1.2Mi   176Gi     1%      57  1.8G    0%   /private/tmp/tmp-mount-8ZWj0h
+/dev/disk5s2      16Ti   4.1Ti   1.5Ti    74%    2.0M   16G    0%   /Volumes/TimeMachine
+/dev/disk5s1      16Ti   3.7Ti   1.5Ti    72%     28k   16G    0%   /Volumes/WD-Databackup
+/dev/disk5s3      16Ti   2.1Ti   1.5Ti    59%    1.9M   16G    0%   /Volumes/Backups of Tao?s Mac mini
+/dev/disk5s4      16Ti   5.0Ti   1.5Ti    78%    2.1M   16G    0%   /Volumes/Backups of Tao?s Mac mini 1
+/dev/disk12s1    704Mi   459Mi   244Mi    66%     239  4.3G    0%   /Volumes/Discord
+
+### memory
+Mach Virtual Memory Statistics: (page size of 16384 bytes)
+Pages free:                               43414.
+Pages active:                            273811.
+Pages inactive:                          269765.
+Pages speculative:                         3341.
+Pages throttled:                              0.
+Pages wired down:                        148960.
+Pages purgeable:                          13283.
+"Translation faults":                3289525008.
+Pages copy-on-write:                   64671145.
+Pages zero filled:                   2251422247.
+Pages reactivated:                    310802678.
+Pages purged:                          76520350.
+File-backed pages:                       205764.
+Anonymous pages:                         341153.
+Pages stored in compressor:              977678.
+Pages occupied by compressor:            274233.
+Decompressions:                       364190917.
+Compressions:                         420824681.
+Pageins:                               66870649.
+Pageouts:                                636376.
+Swapins:                                1537570.
+Swapouts:                               2354693.
+
+### recent system errors (last 24h, max 200 lines)
+zsh:log:31: too many arguments
