@@ -18,6 +18,8 @@
   - **main** acts as **PM/architect/reviewer**: requirements, task breakdown, prioritization, risk calls, progress updates, and final summaries to Tao.
   - Execution agents should be **role-specialized** and do the implementation work.
   - **codex_worker** is the dedicated Codex execution agent for coding tasks.
+  - Default delegation rule: unless a task is truly tiny and can be finished in one short pass, **main should not default to personally coding/editing files**; implementation work should be delegated to **codex_worker** first.
+  - Good candidates for main to do directly: tiny edits, very small linear fixes, or short actions that are not worth execution-agent handoff.
   - For complex projects, create more specialized agents as needed (e.g. frontend/backend/test/ops/docs/data) instead of overloading one agent.
   - This is the **current default pattern**, but Tao may change the rules as needs evolve.
 
