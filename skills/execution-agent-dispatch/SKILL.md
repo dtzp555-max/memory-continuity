@@ -76,6 +76,21 @@ Default rule:
 - report at milestone
 - report immediately on blockers
 
+## Main-to-Tao forwarding rule
+
+Execution-agent updates are not complete until main forwards the state change upward.
+
+When a worker reports any of these:
+- task accepted
+- milestone reached
+- blocked
+- failed
+- completed
+
+main must update Tao **before** continuing with review, commit, release, or re-delegation work.
+
+If a worker has already reported completion and main has not forwarded that state, treat it as a **main process failure**, not as "still in progress".
+
 ## Completion rule
 
 A task is not complete just because files changed.
