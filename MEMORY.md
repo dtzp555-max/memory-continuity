@@ -40,7 +40,11 @@
 - Current important exception / newer rule: **codex_worker** should use **primary** = `openai-codex/gpt-5.4`, prefer high/extra/xhigh thinking when available, and should **not auto-fallback** to another model. If its primary model is unavailable, report to Tao and let Tao decide the replacement model.
 - Additional long-lived execution agents initialized locally for repeat use: **docs_worker**, **qa_worker**, **ops_worker**.
 - Execution-agent system needs a standardized dispatch/handoff layer: task input template, result format, blocker/escalation rules, and a **main-to-Tao forwarding rule**.
-- New hard rule: when an execution agent reports acceptance, milestone progress, blocker, or completion, **main must update Tao first before continuing with review/commit/next-step work**. If worker completion is not forwarded, treat that as a main-process failure rather than “still working”.
+- **Hard reporting/forwarding protocol (must-follow):**
+  - Worker events that require immediate Tao-visible updates (no “I’ll summarize later”): **accepted**, **milestone result**, **blocked/failed**, **completion**, **agent switch decision**, **transition to review/commit/release**.
+  - **Ordering constraint:** when a worker reports milestone/completion, main’s *first* action is to update Tao; only then proceed to review/commit/next dispatch.
+  - **Failure definition:** if a worker has already reported completion and main has not forwarded it to Tao, that is a **main process failure**, not “task still in progress”.
+  - Default 4-line update template: **who / status / output / next**.
 
 ## 8) Watchdog / automation policy
 - Tao preference: avoid watchdog-style auto-restart automation.
