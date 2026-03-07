@@ -21,6 +21,8 @@
   - Default delegation rule: unless a task is truly tiny and can be finished in one short pass, **main should not default to personally coding/editing files**; implementation work should be delegated to **codex_worker** first.
   - Good candidates for main to do directly: tiny edits, very small linear fixes, or short actions that are not worth execution-agent handoff.
   - For complex projects, create more specialized agents as needed (e.g. frontend/backend/test/ops/docs/data) instead of overloading one agent.
+  - Create multiple execution agents when work is meaningfully parallel, responsibilities are different, contexts are likely to contaminate each other, or independent validation/release tracks are needed.
+  - Avoid over-splitting for tiny, highly coupled, or poorly defined tasks.
   - This is the **current default pattern**, but Tao may change the rules as needs evolve.
 
 ## 4) ACP/Codex delegation constraints
