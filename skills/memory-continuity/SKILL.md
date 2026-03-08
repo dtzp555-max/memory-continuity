@@ -1,9 +1,11 @@
 ---
-name: continuity-guard
-description: Maintain short-term continuity and anti-silence discipline for OpenClaw agents using memory/CURRENT_STATE.md plus dual reporting rules. Use when creating/updating agent workspaces, after OpenClaw upgrades/restarts, when continuity seems broken, when a session may have lost context, or when you need to doctor/repair CURRENT_STATE coverage and reporting protocol drift across agents.
+name: memory-continuity
+description: Preserve short-term working continuity for OpenClaw agents when recent in-flight work gets lost after gateway interruption/restart, model fallback or unavailability, /new or fresh sessions, context compaction, or silent execution-agent reporting gaps. Use when you need memory/CURRENT_STATE.md, dual reporting discipline, continuity doctor checks, or repair of continuity drift across agent workspaces.
 ---
 
-# Continuity Guard
+# Memory Continuity
+
+Use this skill to prevent agents from forgetting what is currently in flight when continuity breaks in practical ways: gateway interruption/restart, model fallback/unavailability, `/new` or fresh sessions, context compaction, or worker results not being surfaced upward in time.
 
 Use `memory/CURRENT_STATE.md` as a small overwrite-oriented workbench, not as a journal.
 
@@ -68,7 +70,7 @@ Run `scripts/continuity_doctor.py` when:
 From the main workspace:
 
 ```bash
-python3 skills/continuity-guard/scripts/continuity_doctor.py \
+python3 skills/memory-continuity/scripts/continuity_doctor.py \\
   --main-workspace /Users/taodeng/.openclaw/workspace/main \
   --agents-root /Users/taodeng/.openclaw/workspaces
 ```
