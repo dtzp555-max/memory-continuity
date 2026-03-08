@@ -42,10 +42,16 @@ A good worker handoff should answer:
 
 ## Recommended result packet
 
-- `status:` ok | blocked | failed
-- `changed:` ...
-- `notes:` ...
+- `status:` accepted | milestone | blocked | failed | done
+- `summary:` ...
+- `evidence:` ...
+- `risk:` ...
 - `next:` ...
+
+## Added operational aids
+
+- `CHECKLIST.md` — pre-dispatch / post-dispatch / evidence-gate checklist for main
+- `FAILURE_TEMPLATE.md` — compact template for documenting launch failure, stall, or misreporting cases
 
 ## Notes
 
