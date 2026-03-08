@@ -45,7 +45,6 @@ Capture what matters. Decisions, context, things to remember. Skip the secrets u
 - This file is **not** a journal; it is a short-lived task/state board
 - Keep it small and overwrite-oriented
 - Use it to survive `/new`, gateway restarts, compaction, and context loss
-- Update it when important task state changes: dispatch, block, completion, next-step changes
 - Remove stale items instead of appending endlessly
 
 Capacity guidance:
@@ -58,6 +57,53 @@ Suggested sections:
 - `Recently Finished`
 - `Next`
 - `Reset Summary`
+
+Update only on state changes, not on a timer. The key triggers are:
+- task accepted / formally started
+- task dispatched to a worker
+- task becomes blocked / waiting
+- milestone reached
+- next-step changes
+- task/phase completed
+
+## Dual reporting protocol
+
+### A) Execution agent → main (执行回包协议)
+Execution agents report to main, not directly to Tao.
+
+They must report at these points:
+- accepted
+- blocked
+- milestone
+- done
+- model/environment abnormal (especially GPT-5.4 unavailable/fallback, repo/cwd/tool/auth issues)
+
+Preferred worker reply format:
+- `status`
+- `summary`
+- `evidence`
+- `risk`
+- `next`
+
+### B) main → Tao (对外汇报协议)
+Main reports user-visible progress to Tao.
+
+Main must update Tao at these points:
+- task accepted / formally started
+- worker dispatched
+- blocked
+- milestone reached
+- task/phase completed
+
+Preferred Tao update format:
+- who
+- status
+- output
+- next
+
+Ordering rule:
+- When a worker reports milestone/completion/blocker, main should first update `CURRENT_STATE.md`, then update Tao, then continue with review/commit/next dispatch.
+- If there is no evidence point yet (sessionKey / commit / branch / PR / log), do not claim work has “already started”; say it is about to start.
 
 - **Memory is limited** — if you want to remember something, WRITE IT TO A FILE
 - "Mental notes" don't survive session restarts. Files do.
