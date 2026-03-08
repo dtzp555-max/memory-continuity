@@ -24,6 +24,34 @@ Use `memory/CURRENT_STATE.md` as a small overwrite-oriented workbench, not as a 
 - Update only on state changes, not on a timer
 - Remove stale items instead of endlessly appending
 
+## Minimal JIRA-like workflow
+
+Keep the workflow small. Use these task states only:
+- `planned`
+- `dispatching`
+- `in_progress`
+- `blocked`
+- `reviewing`
+- `done`
+
+State meaning:
+- `planned`: task exists and has been defined
+- `dispatching`: main has initiated delegation, but does not yet have enough evidence that the worker truly launched
+- `in_progress`: worker/session has visible execution evidence
+- `blocked`: task cannot safely proceed right now (including launch failure, stalled worker, model failure, auth/tool issues)
+- `reviewing`: deliverable exists and main is validating it
+- `done`: main has accepted the result and updated Tao
+
+Evidence rule:
+- Do not upgrade a task state without an evidence point.
+- Good evidence points include: non-empty worker session history, worker accepted/milestone reply, commit, branch, PR, release, or runtime log.
+- `sessions_spawn accepted` alone is not enough to claim real progress.
+
+Timeout rules:
+- If a worker has no first visible response/evidence within 10 minutes after dispatch, mark the task `blocked` with reason `launch failure`.
+- If a worker has an ETA and passes that ETA without a milestone, mark the task `blocked` with reason `stalled`.
+- Silence is not neutral; unexplained silence is a process failure signal.
+
 ## Dual reporting protocol
 
 ### Worker → main
@@ -43,8 +71,8 @@ Preferred reply format:
 
 ### main → Tao
 Main must report to Tao at:
-- task accepted / formally started
-- worker dispatched
+- task formally started
+- worker truly in progress (not merely spawn-accepted)
 - blocked
 - milestone reached
 - task/phase completed
@@ -57,7 +85,7 @@ Preferred Tao update format:
 
 Ordering rule:
 - When a worker reports milestone/completion/blocker, first update `CURRENT_STATE.md`, then update Tao, then continue with review/commit/next dispatch.
-- If no evidence point exists yet (sessionKey / commit / branch / PR / log), do not claim work has already started.
+- If no evidence point exists yet (sessionKey with trace / commit / branch / PR / log), do not claim work has already started; say it is about to start.
 
 ## When to use the doctor
 Run `scripts/continuity_doctor.py` when:

@@ -24,8 +24,15 @@ The item is missing or materially broken:
    - `## Recently Finished`
    - `## Next`
    - `## Reset Summary`
-4. main `AGENTS.md` contains continuity guidance and dual reporting protocol markers
+4. main `AGENTS.md` contains continuity guidance, minimal JIRA-like workflow markers, and dual reporting protocol markers
 5. line-count caps are respected
+
+## Runtime/process checks to add later
+These are not fully implemented yet, but are part of the intended workflow:
+- detect `dispatching` tasks that never produce a worker trace
+- treat no first response within 10 minutes as `blocked (launch failure)`
+- treat missed milestone ETA as `blocked (stalled)`
+- ensure main does not claim `in_progress` without evidence
 
 ## Suggested actions on failure
 - create missing files from template
