@@ -58,3 +58,10 @@ Before main says the task is done:
 - [ ] Basic verification happened when relevant
 - [ ] Caveats/blockers are disclosed
 - [ ] Tao has been updated
+
+## H. Completion-consumption gate
+If worker completion/milestone/blocker already exists in runtime/session history:
+- [ ] Main has explicitly read/confirmed the worker result
+- [ ] CURRENT_STATE reflects the new state
+- [ ] Tao has received a main-authored summary (`who / status / output / next`)
+- [ ] Main is no longer behaving as if it is still waiting for a reply

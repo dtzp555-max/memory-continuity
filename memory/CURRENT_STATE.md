@@ -1,13 +1,10 @@
 # CURRENT_STATE
 
-_Last updated: 2026-03-08 11:13 Australia/Brisbane_
+_Last updated: 2026-03-09 07:47 Australia/Brisbane_
 
 ## In Flight
-- [in_progress] anti-silence workflow hardening — main — project-heartbeat runtime state + heartbeat hook added
-
-## In Flight
-- [in_progress] anti-silence workflow hardening — main — project-heartbeat runtime state + heartbeat hook added
-- [dispatching] Geopolitical Turbulence Trapper restart — main — restarting under the new evidence-gated workflow; main owns Milestone 2 restart and will only claim `in_progress` after fresh, visible execution evidence
+- [in_progress] anti-silence workflow hardening — main — workflow rules hardened again after finding a completion-consumption bug: runtime worker results can reach Tao before main updates state and summarizes them
+- [blocked] Geopolitical Turbulence Trapper restart — main — no fresh execution evidence appeared within the 10-minute dispatch window after the 07:04 restart; treating as launch failure / blocked pending Tao’s direction
 
 ## Blocked / Waiting
 - [failed] Geopolitical Turbulence Trapper workflow test — main — previous flow test failed: planned workers (`data_worker`, `strategy_worker`, `dashboard_worker`) never produced launch/execution evidence, yet main reported progress as if work were underway

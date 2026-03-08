@@ -97,6 +97,8 @@ If multiple sub-tasks belong to the same project, keep the heartbeat open until 
 - Do not keep the heartbeat alive after project closure.
 - Do not claim progress without evidence.
 - Silence is a process problem, not a neutral state.
+- If the latest check finds no new evidence since the previous user-visible update, do not dress that up as `in_progress`; report `blocked`, `launch failure`, or `no change` plainly.
+- Do not keep re-broadcasting stale `CURRENT_STATE` text as if it were fresh execution progress.
 
 ## References
 - For task-state rules and evidence gates: read `../agent-workflow/references/state-machine.md`

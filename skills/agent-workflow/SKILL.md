@@ -97,6 +97,20 @@ When a worker reports milestone/completion/blocker:
 
 If there is no evidence point yet, do not claim the work has already started; say it is about to start.
 
+## Completion-consumption rule
+If a worker completion/milestone/blocker has already been emitted by runtime or is visible in session history, main must treat that as a consumed-state obligation immediately.
+
+Main must not remain in a "still waiting" posture after worker completion is already visible.
+
+Required steps:
+1. read/confirm the worker result
+2. update task state / CURRENT_STATE
+3. send the user a normal main-authored update (`who / status / output / next`)
+
+Important:
+- runtime auto-announce does not replace main's supervisory duty
+- user seeing the worker result before main summarizes it is a main-process failure, not an acceptable steady state
+
 ## Blocked reasons
 Prefer a short blocked reason label:
 - `launch failure`
