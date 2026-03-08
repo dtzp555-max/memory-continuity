@@ -37,7 +37,10 @@
 
 ## 7) Model policy (current preference)
 - Historical temporary preference once was: all subagents **primary** = `openai-codex/gpt-5.2`, **fallback** = `github-copilot/claude-opus-4.6`.
-- Current important exception / newer rule: **codex_worker** should use **primary** = `openai-codex/gpt-5.4`, prefer high/extra/xhigh thinking when available, and should **not auto-fallback** to another model. If its primary model is unavailable, report to Tao and let Tao decide the replacement model.
+- Current important exception / newer rule: **execution agents** (esp. `codex_worker`, and by default other workers unless Tao says otherwise) must target **primary** = `openai-codex/gpt-5.4`.
+  - **No silent fallback:** if the system falls back to any other model (or if `openai-codex/gpt-5.4` becomes unknown/unavailable), main must **immediately notify Tao**.
+  - **No auto-fallback for execution agents:** if 5.4 is unavailable, workers should not continue on another model; main should report and wait for Tao’s model decision.
+  - If an execution agent is not responding, main must consider **model unavailability/fallback** as a first-class suspected cause and **tell Tao**.
 - Additional long-lived execution agents initialized locally for repeat use: **docs_worker**, **qa_worker**, **ops_worker**.
 - Execution-agent system needs a standardized dispatch/handoff layer: task input template, result format, blocker/escalation rules, and a **main-to-Tao forwarding rule**.
 - **Hard reporting/forwarding protocol (must-follow):**
