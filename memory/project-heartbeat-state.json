@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "activeProject": {
+    "name": "Geopolitical Turbulence Trapper",
+    "state": "armed",
+    "timeoutMin": 10,
+    "lastUserVisibleUpdateAt": "2026-03-08T19:04:00+10:00",
+    "lastCheckAt": null,
+    "trackedWorkers": [
+      "data_worker",
+      "strategy_worker",
+      "dashboard_worker"
+    ],
+    "notes": "Use project-heartbeat rules. If timeout expires with no meaningful update, inspect worker traces / CURRENT_STATE / blocker state and send a user-visible update. Close when project is done, paused, failed, or cancelled."
+  }
+}
