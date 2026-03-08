@@ -1,16 +1,14 @@
 {
   "version": 1,
   "activeProject": {
-    "name": "Geopolitical Turbulence Trapper",
-    "state": "failed",
+    "name": "Geopolitical Turbulence Trapper restart",
+    "state": "armed",
     "timeoutMin": 10,
-    "lastUserVisibleUpdateAt": "2026-03-09T06:51:00+10:00",
-    "lastCheckAt": "2026-03-09T06:51:00+10:00",
+    "lastUserVisibleUpdateAt": "2026-03-09T07:04:00+10:00",
+    "lastCheckAt": "2026-03-09T07:04:00+10:00",
     "trackedWorkers": [
-      "data_worker",
-      "strategy_worker",
-      "dashboard_worker"
+      "main"
     ],
-    "notes": "Heartbeat check at 06:51 found the project still active but with no worker launch evidence: subagents list empty, no subagent sessions visible, and CURRENT_STATE.md still shows Milestone 2 brief + schema + module/page draft under main with no recorded blocker. Tao also explicitly complained at 06:45 that progress updates were looping without real advancement. Sent one concise anti-silence update to Tao framing the work as blocked on lack of execution evidence and reset the timer from 06:51."
+    "notes": "Tao approved restarting the project at 07:04 under the new evidence-gated workflow. Restart begins in dispatching state, with main owning the Milestone 2 restart directly instead of pretending delegated workers are active. Upgrade only after fresh visible execution evidence appears; otherwise mark blocked on launch/stall rather than sending empty progress updates."
   }
 }

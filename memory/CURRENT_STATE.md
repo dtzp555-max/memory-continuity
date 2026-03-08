@@ -5,8 +5,12 @@ _Last updated: 2026-03-08 11:13 Australia/Brisbane_
 ## In Flight
 - [in_progress] anti-silence workflow hardening — main — project-heartbeat runtime state + heartbeat hook added
 
+## In Flight
+- [in_progress] anti-silence workflow hardening — main — project-heartbeat runtime state + heartbeat hook added
+- [dispatching] Geopolitical Turbulence Trapper restart — main — restarting under the new evidence-gated workflow; main owns Milestone 2 restart and will only claim `in_progress` after fresh, visible execution evidence
+
 ## Blocked / Waiting
-- [failed] Geopolitical Turbulence Trapper workflow test — main — flow test failed: planned workers (`data_worker`, `strategy_worker`, `dashboard_worker`) never produced launch/execution evidence, yet main reported progress as if work were underway
+- [failed] Geopolitical Turbulence Trapper workflow test — main — previous flow test failed: planned workers (`data_worker`, `strategy_worker`, `dashboard_worker`) never produced launch/execution evidence, yet main reported progress as if work were underway
 
 ## Recently Finished
 - promo_worker packaging pass completed — added MIT LICENSE to execution-agent-planner and gh-pr-release-flow, added README related-project links across OCM/clawkeeper/skill repos, merged OCM PR #12, published clawkeeper v0.1.0
