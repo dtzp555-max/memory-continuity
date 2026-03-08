@@ -68,6 +68,34 @@ Update only on state changes, not on a timer. The key triggers are:
 
 ## Dual reporting protocol
 
+### Minimal JIRA-like workflow
+
+Use these task states only:
+- `planned`
+- `dispatching`
+- `in_progress`
+- `blocked`
+- `reviewing`
+- `done`
+
+Workflow meaning:
+- `planned`: task exists and has been defined
+- `dispatching`: main has initiated delegation, but there is not yet enough evidence that the worker really launched
+- `in_progress`: worker/session has visible execution evidence
+- `blocked`: task cannot safely proceed right now (including launch failure / stalled worker / model failure)
+- `reviewing`: deliverable exists and main is validating it
+- `done`: main has accepted the result and updated Tao
+
+Evidence rule:
+- Do not upgrade a task state without an evidence point.
+- Good evidence points include: non-empty worker session history, worker accepted/milestone reply, commit, branch, PR, release, or runtime log.
+- `sessions_spawn accepted` alone is not enough to claim the task is truly in progress.
+
+Timeout rules:
+- If a worker has no first visible response/evidence within 10 minutes after dispatch, mark the task `blocked` with reason `launch failure`.
+- If a worker has an ETA and passes that ETA without a milestone, mark the task `blocked` with reason `stalled`.
+- Silence is not neutral; unexplained silence is a process failure signal.
+
 ### A) Execution agent → main (执行回包协议)
 Execution agents report to main, not directly to Tao.
 
@@ -89,8 +117,8 @@ Preferred worker reply format:
 Main reports user-visible progress to Tao.
 
 Main must update Tao at these points:
-- task accepted / formally started
-- worker dispatched
+- task formally started
+- worker truly in progress (not merely spawn-accepted)
 - blocked
 - milestone reached
 - task/phase completed
@@ -103,7 +131,7 @@ Preferred Tao update format:
 
 Ordering rule:
 - When a worker reports milestone/completion/blocker, main should first update `CURRENT_STATE.md`, then update Tao, then continue with review/commit/next dispatch.
-- If there is no evidence point yet (sessionKey / commit / branch / PR / log), do not claim work has “already started”; say it is about to start.
+- If there is no evidence point yet (sessionKey with trace / commit / branch / PR / log), do not claim work has “already started”; say it is about to start.
 
 - **Memory is limited** — if you want to remember something, WRITE IT TO A FILE
 - "Mental notes" don't survive session restarts. Files do.
