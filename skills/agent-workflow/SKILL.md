@@ -25,6 +25,11 @@ Use these states only:
 - `reviewing`
 - `done`
 
+Important:
+- `dispatching` is not a cosmetic alias for `in_progress`.
+- Use `dispatching` only while delegation is being launched and there is still no execution evidence.
+- If execution evidence never appears, do not quietly leave the task in `dispatching`; convert it to `blocked` with reason `launch failure`.
+
 ## State meaning
 - `planned`: task exists and has been defined
 - `dispatching`: main has initiated delegation, but does not yet have enough evidence that the worker truly launched

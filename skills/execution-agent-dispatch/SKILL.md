@@ -50,10 +50,15 @@ Tell the worker what first checkpoint matters and when main expects the first up
 ## Worker response format
 
 Execution agents should respond compactly with:
-- `status:` ok | blocked | failed
-- `changed:` files changed/created, commands run, or "none"
-- `notes:` short summary
+- `status:` accepted | milestone | blocked | failed | done
+- `summary:` short summary
+- `evidence:` files changed/created, commands run, session/log proof, or `none`
+- `risk:` key caveat or `none`
 - `next:` next action or handoff need
+
+Important:
+- A reply without `evidence` is not enough for main to claim the task is truly `in_progress`.
+- `accepted` means the worker has seen the handoff; it does not automatically mean meaningful execution has started.
 
 ## Escalate immediately when
 

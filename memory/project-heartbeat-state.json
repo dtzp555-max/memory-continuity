@@ -2,15 +2,15 @@
   "version": 1,
   "activeProject": {
     "name": "Geopolitical Turbulence Trapper",
-    "state": "armed",
+    "state": "failed",
     "timeoutMin": 10,
-    "lastUserVisibleUpdateAt": "2026-03-08T19:04:00+10:00",
-    "lastCheckAt": null,
+    "lastUserVisibleUpdateAt": "2026-03-09T06:51:00+10:00",
+    "lastCheckAt": "2026-03-09T06:51:00+10:00",
     "trackedWorkers": [
       "data_worker",
       "strategy_worker",
       "dashboard_worker"
     ],
-    "notes": "Use project-heartbeat rules. If timeout expires with no meaningful update, inspect worker traces / CURRENT_STATE / blocker state and send a user-visible update. Close when project is done, paused, failed, or cancelled."
+    "notes": "Heartbeat check at 06:51 found the project still active but with no worker launch evidence: subagents list empty, no subagent sessions visible, and CURRENT_STATE.md still shows Milestone 2 brief + schema + module/page draft under main with no recorded blocker. Tao also explicitly complained at 06:45 that progress updates were looping without real advancement. Sent one concise anti-silence update to Tao framing the work as blocked on lack of execution evidence and reset the timer from 06:51."
   }
 }
