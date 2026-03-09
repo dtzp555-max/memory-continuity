@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TargetInstrumentUniverseItem",
+  "type": "object",
+  "required": ["id", "market", "symbol", "name", "category"],
+  "properties": {
+    "id": {"type": "string"},
+    "market": {"type": "string", "enum": ["HK", "US", "AU", "MACRO"]},
+    "symbol": {"type": "string"},
+    "name": {"type": "string"},
+    "category": {"type": "string", "enum": ["equity", "index", "commodity", "fx", "volatility"]},
+    "themeTags": {"type": "array", "items": {"type": "string"}},
+    "eventSensitivity": {"type": "object", "additionalProperties": {"type": "number"}},
+    "notes": {"type": "string"}
+  }
+}

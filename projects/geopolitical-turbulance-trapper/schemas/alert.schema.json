@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "StrategyAlert",
+  "type": "object",
+  "required": ["type", "severity", "target", "message"],
+  "properties": {
+    "type": {"type": "string", "enum": ["entry_zone", "danger_zone", "exit_zone", "ko_risk", "spread_widening", "event_shock", "vol_spike", "earnings_window"]},
+    "severity": {"type": "string", "enum": ["info", "warning", "high", "critical"]},
+    "target": {"type": "string"},
+    "instrumentCode": {"type": ["string", "null"]},
+    "message": {"type": "string"},
+    "evidence": {"type": "array", "items": {"type": "string"}},
+    "timestamp": {"type": ["string", "null"], "format": "date-time"}
+  }
+}

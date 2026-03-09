@@ -17,6 +17,7 @@ _Last updated: 2026-03-09 14:46 Australia/Brisbane_
 - GPT-5.4 support restored again after update-related breakage; if it breaks again, report Tao immediately
 
 ## Next
+- continue Geopolitical Turbulance Trapper from planning into verified HK-first data/derivatives workflow
 - apply CURRENT_STATE + dual reporting rules in practice
 - later decide whether to package continuity workflow as a skill, clawkeeper feature, or both
 - monitor GPT-5.4 availability and report any fallback/unavailability immediately
