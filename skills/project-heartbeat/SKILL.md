@@ -67,6 +67,24 @@ If 10 minutes pass with no meaningful update while the project is active:
 4. send a user-visible update
 5. return to `armed` if still active, else `closed`
 
+## Hard anti-silence rule
+This is stricter than a reminder.
+
+If the timeout window expires and there is still no fresh execution evidence, main must still send a user-visible update.
+
+Allowed timeout updates when there is no new evidence:
+- `blocked`
+- `launch failure`
+- `no change`
+- `still waiting on <specific blocker>`
+
+Disallowed timeout behavior:
+- saying nothing
+- waiting for a "more complete" answer before updating Tao
+- reusing old optimistic wording like `in_progress` without fresh evidence
+
+Silence after timeout is itself a process failure.
+
 ## Worker check order
 When timeout fires, check in this order:
 1. worker session history / visible traces

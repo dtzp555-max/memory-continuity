@@ -13,6 +13,7 @@
 #   2) CURRENT_STATE.md
 #   3) known blockers (launch/model/auth/tool/path/scope/policy/external)
 # - Then send a real user-visible status update (who / status / output / next).
+# - IMPORTANT: if there is still no fresh evidence, you must still send a timeout update using plain truth (`blocked`, `launch failure`, `no change`, or the exact blocker). Do not stay silent waiting for a better answer.
 # - After sending the update, treat the timer as reset from now.
 # - If the project state is `done`, `paused`, `failed`, or `cancelled`, do not send heartbeat progress nudges.
 #

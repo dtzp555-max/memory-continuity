@@ -1,14 +1,15 @@
 {
   "version": 1,
   "activeProject": {
-    "name": "Geopolitical Turbulence Trapper restart",
+    "name": "ACP + Codex smoke test",
     "state": "armed",
-    "timeoutMin": 10,
-    "lastUserVisibleUpdateAt": "2026-03-09T07:04:00+10:00",
-    "lastCheckAt": "2026-03-09T07:04:00+10:00",
+    "timeoutMin": 15,
+    "lastUserVisibleUpdateAt": "2026-03-09T12:58:00+10:00",
+    "lastCheckAt": "2026-03-09T12:58:00+10:00",
     "trackedWorkers": [
-      "main"
+      "main",
+      "codex (ACP)"
     ],
-    "notes": "Tao approved restarting the project at 07:04 under the new evidence-gated workflow. Restart begins in dispatching state, with main owning the Milestone 2 restart directly instead of pretending delegated workers are active. Upgrade only after fresh visible execution evidence appears; otherwise mark blocked on launch/stall rather than sending empty progress updates."
+    "notes": "Tao approved trying a harder anti-silence rule. This project is now the active heartbeat test. If 15 minutes pass without fresh ACP execution evidence, main must still send a user-visible timeout update with blocked/no-change/plain blocker wording instead of staying silent. Current known blocker: acpx non-interactive permissions likely block writes/exec in ACP smoke tests."
   }
 }
