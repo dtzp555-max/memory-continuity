@@ -4,7 +4,7 @@ _Last updated: 2026-03-09 15:01 Australia/Brisbane_
 
 ## In Flight
 - [in_progress] anti-silence workflow hardening — main — workflow rules hardened again after finding a completion-consumption bug: runtime worker results can reach Tao before main updates state and summarizes them; ACP smoke-test heartbeat is now paused because repeated blocked/no-change updates became noise
-- [in_progress] Geopolitical Turbulance Trapper planning — main — project scope has been re-anchored using Tao's restored chats + old Claude draft; Development Plan v1 and project skeleton are created, next step is HK-first data/verification layer
+- [in_progress] Geopolitical Turbulance Trapper planning — main — project scope has been re-anchored using Tao's restored chats + old Claude draft; project moved out of OpenClaw workspace to `~/Projects/geopolitical-turbulance-trapper`, next step is HK-first data/verification layer in the external project repo
 
 ## Blocked / Waiting
 - [blocked] ACP + Codex smoke test — main — 15:01 watchdog timeout re-check: tracked ACP Codex session still has no messages/history or visible artifact trace at all, so status remains blocked / no change and should be treated as an ACP launch/config-path blocker, not in-progress execution
