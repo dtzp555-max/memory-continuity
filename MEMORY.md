@@ -27,6 +27,7 @@
 
 ## 4) ACP/Codex delegation constraints
 - Telegram channel plugin currently does **not** support `subagent_spawning` hooks → cannot bind persistent subagent sessions with `thread=true`; use `sessions_spawn(mode="run")` as workaround.
+- Current durable conclusion on `execution-agent-dispatch`: it is a **process/protocol skill**, not a fix for OpenClaw/ACP runtime communication. We previously tested parent↔child / agent↔agent flows and did **not** get stable bidirectional communication. Default behavior is still closer to spawn + announce than reliable free-form agent-to-agent conversation. Keep the skill frozen as a workflow aid only; wait for OpenClaw ACP/runtime support to become stable before resuming development aimed at true inter-agent communication.
 
 ## 5) OCM (OpenClaw Manager) repo policies
 - OCM repo path: `~/.openclaw/ocm`.
@@ -34,7 +35,10 @@
 
 ## 6) Ops / security notes
 - Ensure `~/.openclaw/openclaw.json` is not world-readable; prefer permission mode **600**.
-- **Gateway control rule (important):** on Tao’s machine, do **not** run `openclaw gateway stop` as part of recovery/reload work. Stopping the gateway can cut off the agent’s own control path, and the service may then require Tao to manually run `openclaw gateway install` to restore it. Preferred action is `openclaw gateway restart` only when truly needed, and first check `openclaw gateway status` before touching the service.
+- **Gateway control rule (critical hard ban):** on Tao’s machine, do **not** run `openclaw gateway stop` under any circumstance during normal assistance/recovery/reload work.
+- **Related hard ban:** do **not** run any gateway command that may internally perform stop→start semantics unless Tao explicitly asks for that exact action and accepts the risk. Treat `openclaw gateway restart` as unsafe-by-default as well, because in practice it may still tear down the active service/control path.
+- Stopping or restart-style control can cut off the agent’s own control path, and the service may then require Tao to manually run `openclaw gateway install` to restore it.
+- Required sequence before any gateway intervention: (1) run `openclaw gateway status`; (2) report findings to Tao; (3) prefer non-disruptive diagnosis first; (4) only touch gateway lifecycle if Tao explicitly approves the exact command.
 
 ## 7) Model policy (current preference)
 - Historical temporary preference once was: all subagents **primary** = `openai-codex/gpt-5.2`, **fallback** = `github-copilot/claude-opus-4.6`.

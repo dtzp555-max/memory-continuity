@@ -7,6 +7,20 @@ description: Standardize how main dispatches work to execution agents and how ex
 
 Use this skill after execution architecture is decided.
 
+## Status / scope boundary
+
+This skill is a **workflow / protocol skill**.
+It standardizes dispatch packets, worker replies, escalation points, and main-to-Tao forwarding discipline.
+
+It is **not** a runtime transport fix.
+It does **not** create stable bidirectional communication between OpenClaw agents, subagents, or ACP sessions.
+It does **not** guarantee parent-first completion routing, persistent child↔parent conversation, or reliable agent-to-agent backchannels.
+
+Current project status:
+- treat this skill as useful only for **process discipline**
+- do **not** treat it as a solution to ACP / subagent communication instability
+- if stable agent-to-agent communication is needed, wait for OpenClaw / ACP runtime support to mature first
+
 ## Goal
 
 Turn vague delegation into a clear handoff.

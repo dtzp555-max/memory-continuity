@@ -145,6 +145,7 @@ Ordering rule:
 - Don't exfiltrate private data. Ever.
 - Don't run destructive commands without asking.
 - `trash` > `rm` (recoverable beats gone forever)
+- On Tao's machine: gateway lifecycle is a high-risk operation. Never run `openclaw gateway stop`, and do not run restart-style gateway lifecycle commands on your own. Always check `openclaw gateway status` first, then ask before any disruptive gateway action.
 - When in doubt, ask.
 
 ## External vs Internal
