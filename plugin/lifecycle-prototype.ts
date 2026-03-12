@@ -26,7 +26,8 @@ function readStateFile(filePath: string) {
 }
 
 function extractSection(markdown: string, heading: string) {
-  const re = new RegExp(`^## ${heading}\\n([\\s\\S]*?)(?=^## |^---$|\\Z)`, "m");
+  const escapedHeading = heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`^##\\s+${escapedHeading}\\s*\\n([\\s\\S]*?)(?=\\n##\\s|$)`, "m");
   const m = markdown.match(re);
   return (m?.[1] ?? "").trim();
 }
@@ -72,8 +73,17 @@ function ensureStateFile(filePath: string) {
   );
 }
 
+function formatArchiveStamp(date = new Date()) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return [
+    date.getFullYear(),
+    pad(date.getMonth() + 1),
+    pad(date.getDate()),
+  ].join("-") + `_${pad(date.getHours())}-${pad(date.getMinutes())}`;
+}
+
 function appendArchive(workspaceDir: string, markdown: string) {
-  const stamp = new Date().toISOString().replace(/[:]/g, "-");
+  const stamp = formatArchiveStamp();
   const archiveDir = path.join(workspaceDir, "memory", "session_archive");
   fs.mkdirSync(archiveDir, { recursive: true });
   fs.writeFileSync(path.join(archiveDir, `${stamp}.md`), markdown, "utf8");
@@ -129,7 +139,17 @@ export default function register(api: any) {
     const statePath = resolveStatePath(api.runtime ?? {});
     if (!statePath) return;
     ensureStateFile(statePath);
-    // Intentionally minimal for prototype. Real implementation must write a
-    // deterministic checkpoint and verify runtime waits for completion.
+    const existing = readStateFile(statePath) ?? "";
+    const marker = `\n<!-- COMPACTION_PROBE ${new Date().toISOString()} -->\n`;
+    if (!existing.includes("<!-- COMPACTION_PROBE ")) {
+      fs.writeFileSync(statePath, existing.trimEnd() + marker, "utf8");
+    } else {
+      fs.writeFileSync(
+        statePath,
+        existing.replace(/<!-- COMPACTION_PROBE .*?-->/, marker.trim()),
+        "utf8",
+      );
+    }
+    console.log(`[memory-continuity] before_compaction probe wrote marker to ${statePath}`);
   });
 }
