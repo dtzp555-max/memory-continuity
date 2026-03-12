@@ -147,9 +147,12 @@ memory-continuity/
 ├── SKILL.md
 ├── README.md
 ├── LICENSE
+├── plugin/
+│   └── lifecycle-prototype.ts   # Phase 2 probe / not production yet
 ├── references/
 │   ├── template.md
-│   └── doctor-spec.md
+│   ├── doctor-spec.md
+│   └── phase2-hook-validation.md
 └── scripts/
     └── continuity_doctor.py
 ```
