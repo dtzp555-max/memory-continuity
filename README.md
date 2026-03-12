@@ -1,44 +1,65 @@
 # memory-continuity
 
-OpenClaw skill for **short-term working continuity** — so your agent can pick up
-exactly where it left off after a gateway crash, `/new`, model fallback, or
-context compaction.
+OpenClaw skill for **short-term working continuity** — so an agent can recover
+structured in-flight work state after `/new`, reset, gateway interruption,
+model fallback, or compaction.
 
 ## What problem does this solve?
 
-When your gateway dies mid-conversation, or you hit `/new` to start fresh, or
-the model falls back to a different provider — your agent loses its working
-context. Long-term memory can tell it *what it knows*, but not *what it was
-doing*. This skill fills that gap.
+OpenClaw already preserves a lot:
+- transcripts
+- compaction summaries
+- memory files
+- session memory search
 
-**One-line summary:** Long-term memory = what you know. This skill = what you
-are doing right now.
+But those do not always answer the most operational question:
+
+> What were we doing right now, where did we stop, and what should happen next?
+
+That is the problem this skill solves.
+
+**One-line summary:**
+- long-term memory = what you know
+- memory continuity = what you are doing right now
+
+## Current architecture stance
+
+This repository now treats the skill as:
+- a **behavior contract**
+- a **fallback implementation**
+- a **human-readable protocol** for structured working-state checkpoints
+
+The planned primary runtime path is a **standard lifecycle plugin** that can
+improve startup, `/new`, and compaction continuity **without consuming
+OpenClaw’s exclusive `contextEngine` slot**.
+
+A ContextEngine implementation remains a **future option**, not the default
+v1 direction.
 
 ## Quick Start
 
 ### Install
 
 ```bash
-# Go to your OpenClaw workspace skills directory
 cd ~/.openclaw/workspace/skills/
-
-# Clone
 git clone https://github.com/dtzp555-max/memory-continuity.git
-
-# That's it. No npm install, no API keys, no database.
 ```
 
-### Test it
+No npm install, no API keys, no external database.
 
-1. Start a conversation with your agent about a multi-step task
-2. Chat for a few turns, make some decisions
-3. Check: does `memory/CURRENT_STATE.md` exist in your workspace? Does it
-   reflect what you were doing?
-4. Type `/new` to start a fresh session
-5. The agent should read `CURRENT_STATE.md` and ask:
-   *"Last session we were working on X. Want to continue?"*
+### Test the current skill version
 
-If step 5 works, the skill is doing its job.
+1. Start a multi-step task with your agent
+2. Make a few concrete decisions
+3. Check whether `memory/CURRENT_STATE.md` exists and reflects the work state
+4. Trigger `/new`
+5. Ask a recovery question like:
+   - “刚才我们说到哪了”
+   - “continue”
+   - “what were we doing”
+
+A good recovery should surface the current objective / step / next action,
+not generic small talk.
 
 ### Run the doctor
 
@@ -46,32 +67,17 @@ If step 5 works, the skill is doing its job.
 python3 scripts/continuity_doctor.py --workspace ~/.openclaw/workspace
 ```
 
-Sample output:
-```
-Continuity Doctor — scanning: /Users/you/.openclaw/workspace
-============================================================
+## How the current skill version works
 
-[OK]        memory/CURRENT_STATE.md exists
-[OK]        CURRENT_STATE.md is fresh (0.3h old)
-[OK]        Template compliance: all sections present
-[WARNING]   Unsurfaced Results section is not empty — review needed
-[INFO]      Found 3 session archive(s), latest: 2026-03-12_14-30.md
+The skill defines a discipline around one file:
+- `memory/CURRENT_STATE.md`
 
-Overall status: WARNING
-```
+That file is the short-term workbench for active work. It is:
+- overwritten, not appended
+- intentionally short
+- structured for fast recovery
 
-## How it works
-
-The skill installs a behavioral protocol via `SKILL.md`. When loaded, the agent
-follows these rules:
-
-1. **Session start:** Read `memory/CURRENT_STATE.md`, brief the user, wait for
-   confirmation
-2. **During work:** Overwrite the state file at key moments (decisions,
-   completed steps, errors, before long tool calls, every ~10 turns)
-3. **Session end / `/new`:** Final state save + archive a timestamped snapshot
-
-The state file uses a fixed template:
+### The checkpoint shape
 
 ```markdown
 # Current State
@@ -97,75 +103,92 @@ None
 None
 ```
 
-The entire file is designed to be read in 15 seconds. It is overwritten (not
-appended) on every update, keeping it permanently short.
+## Recovery rules
 
-## Architecture position
+In recovery scenarios, the skill expects the agent to prioritize:
+- Objective
+- Current Step
+- Next Action
+- Blockers
+- Unsurfaced Results
 
-This skill occupies a specific niche. Here is how it relates to other tools:
+A generic greeting should **not** outrank recovery state when the checkpoint
+contains active work.
 
-| Layer | Tool | What it stores |
-|---|---|---|
-| Working state | **memory-continuity** (this skill) | What you are doing *right now* |
-| Stable facts | OpenClaw native markdown memory | Preferences, decisions, knowledge |
-| Retrieval | memory-lancedb-pro / similar | Searchable long-term history |
+## Relationship to native OpenClaw features
 
-These layers are complementary. This skill has **zero dependency** on any
-database or external memory plugin. It works with plain markdown files that
-live in your workspace and can be backed up with `git` or `cp`.
+### Native OpenClaw already handles
+- transcript persistence
+- compaction
+- pre-compaction `memoryFlush`
+- session memory search
+- system prompt/bootstrap assembly
 
-## File structure
+### memory-continuity adds
+- a **structured working-state checkpoint**
+- explicit short-term recovery fields
+- a deterministic place to look for active work state
+- explicit handling for `Unsurfaced Results`
 
-```
+### Important boundary
+Session memory search is useful for:
+- “what did we discuss before?”
+- “what decision was mentioned in a prior session?”
+
+Memory continuity is for:
+- “what are we doing right now?”
+- “where did we stop?”
+- “what should happen next?”
+
+## Repository layout
+
+```text
 memory-continuity/
-├── SKILL.md                    # Core skill (loaded by OpenClaw)
-├── README.md                   # This file
-├── LICENSE                     # MIT
+├── SKILL.md
+├── README.md
+├── LICENSE
 ├── references/
-│   ├── template.md             # CURRENT_STATE.md blank template
-│   └── doctor-spec.md          # Doctor check specifications
+│   ├── template.md
+│   └── doctor-spec.md
 └── scripts/
-    └── continuity_doctor.py    # Diagnostic tool (reports only, no auto-repair)
+    └── continuity_doctor.py
 ```
 
-At runtime, the skill creates these files in your workspace:
+At runtime, the skill works primarily with:
 
-```
+```text
 $WORKSPACE/
 └── memory/
-    ├── CURRENT_STATE.md         # Live workbench (overwritten each update)
-    └── session_archive/         # Timestamped snapshots from past sessions
-        ├── 2026-03-12_14-30.md
-        └── ...
+    ├── CURRENT_STATE.md
+    └── session_archive/
 ```
 
 ## Design principles
 
-1. **Zero dependencies.** No database, no API, no npm packages. Just files.
-2. **Backup = copy.** The entire state is in `memory/`. Back it up however you
-   back up your workspace.
-3. **Overwrite, don't append.** CURRENT_STATE.md is a workbench, not a journal.
-   It stays short because it is replaced on every update.
-4. **Diagnose, don't auto-repair.** The doctor script flags problems for you to
-   fix. Automated repair of state files is too risky at this stage.
-5. **Complement, don't compete.** This skill does not replace long-term memory.
-   It solves a different problem (crash recovery vs knowledge retrieval).
+1. **Files are the source of truth**
+2. **Structured checkpoint beats free-form recollection**
+3. **Recovery must prefer truth over confident guessing**
+4. **This complements native OpenClaw memory; it does not replace it**
+5. **Read access is helpful, but should not be the only long-term path**
+6. **The primary plugin direction should coexist with other ecosystem plugins such as `lossless-claw`**
 
-## Current status
+## Current roadmap
 
-**v0.2 — Draft / early version**
+### Phase 1
+Strengthen the current skill version:
+- tighten recovery behavior
+- tighten checkpoint discipline
+- improve doctor and docs
 
-What works:
-- SKILL.md protocol with discipline rules
-- CURRENT_STATE.md template
-- Continuity doctor diagnostic script
-- Session archive on `/new`
+### Phase 2
+Build a **standard lifecycle plugin** as the primary runtime path:
+- startup recovery behavior
+- `/new` checkpointing
+- compaction-boundary checkpointing
+- end-of-run safety writes
 
-Planned:
-- Plugin version with `command:new` and `before_agent_start` hooks
-  (for guaranteed save/restore without relying on agent self-discipline)
-- More real-world validation across different gateway configurations
-- Sub-agent continuity handover protocol
+### Future option
+Evaluate a ContextEngine variant later only if the slot tradeoff is justified.
 
 ## License
 

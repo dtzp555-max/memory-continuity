@@ -1,37 +1,77 @@
 ---
 name: memory-continuity
 description: >
-  Short-term working continuity for OpenClaw agents. Preserves in-flight state
-  across gateway restarts, /new, model fallback, and context compaction.
-  Use this skill whenever an agent needs to survive session breaks without
-  losing what it was doing. Triggers on: session start, /new, context recovery,
-  "where were we", "continue", resuming work, or any situation where recent
-  working state may have been lost. This is NOT a long-term memory system —
-  it is a crash-recovery workbench.
+  Short-term working continuity for OpenClaw agents. Preserves structured
+  in-flight work state across gateway restarts, /new, reset, model fallback,
+  and context compaction. This skill is the human-readable protocol and
+  fallback layer for working-state recovery; it complements native OpenClaw
+  memory, compaction, and session memory search rather than replacing them.
+  Use when an agent needs to survive session breaks without losing what it was
+  doing.
 ---
 
 # memory-continuity
 
-Lightweight continuity layer that keeps a single overwrite-oriented state file
-(`memory/CURRENT_STATE.md`) so any agent can pick up exactly where it left off
-after a restart, `/new`, gateway crash, model fallback, or context compaction.
+Lightweight continuity layer built around a single overwrite-oriented state file
+(`memory/CURRENT_STATE.md`). Its job is simple: keep a compact, structured
+checkpoint of **what the agent is doing right now** so work can resume after
+`/new`, reset, gateway interruption, compaction, or handoff.
+
+## Positioning
+
+This skill is **not** the whole long-term architecture.
+
+It is the current:
+- **behavior contract** for agents
+- **fallback implementation** when no plugin is installed
+- **human-readable protocol** for maintaining working-state continuity
+
+Longer term, the primary runtime path is expected to be a **standard lifecycle
+plugin** that improves save/restore reliability without consuming OpenClaw’s
+exclusive `contextEngine` slot.
 
 ## Why this exists
 
-Long-term memory (vector DB, markdown journals) stores *what you know*.
-This skill stores *what you are doing right now*. They solve different problems.
+OpenClaw already has native systems for:
+- transcript persistence
+- compaction summaries
+- pre-compaction `memoryFlush`
+- session-aware `memory_search`
 
-When a gateway crashes mid-task, no amount of long-term memory recall can tell
-the next session: "you were halfway through step 3, the user approved option B,
-and the blocker was X." That is what CURRENT_STATE.md does.
+Those are valuable, but they answer a different question.
+
+They help with:
+- what was discussed before?
+- what knowledge or facts were written down?
+
+This skill helps with:
+- what are we doing **right now**?
+- where did we stop?
+- what should happen next?
+- what result exists but has not yet been surfaced?
+
+That is why `CURRENT_STATE.md` exists.
+
+## Source of truth
+
+The source of truth for working-state continuity is:
+- `memory/CURRENT_STATE.md`
+
+This file should stay:
+- short
+- structured
+- overwrite-oriented
+- readable by both humans and agents
+
+It is a **checkpoint**, not a journal.
 
 ## File layout
 
-```
+```text
 $WORKSPACE/
 ├── memory/
-│   ├── CURRENT_STATE.md      # THE workbench (overwritten, never appended)
-│   └── session_archive/      # compressed snapshots from past sessions
+│   ├── CURRENT_STATE.md      # live workbench (overwrite, never append-log)
+│   └── session_archive/      # optional frozen snapshots
 │       ├── 2026-03-12_14-30.md
 │       └── ...
 ```
@@ -40,53 +80,88 @@ $WORKSPACE/
 
 ## MANDATORY PROTOCOL
 
-### 1. On every session start
+### 1. On session start or recovery-like prompts
 
-```
-IF memory/CURRENT_STATE.md exists:
-  READ it
-  Tell user: "Last session we were working on [Objective]. We reached [Current Step]. Want to continue?"
-  WAIT for user confirmation before proceeding
-ELSE:
-  Create memory/CURRENT_STATE.md with empty template (see below)
-```
+If `memory/CURRENT_STATE.md` exists:
+1. read it
+2. determine whether it contains meaningful active work
+3. if active work exists and the user is asking to continue / recover / resume,
+   **surface the recovered state before generic greeting or chit-chat**
+4. prefer truth over guessing
 
-### 2. When to update CURRENT_STATE.md (the discipline rules)
+If no active work exists:
+- normal conversation flow is fine
 
-Update the file by **overwriting** it (not appending) at these moments:
+If the file does not exist:
+- create it from the template below when work begins
+
+### 2. Recovery priority rule
+
+In recovery scenarios such as:
+- `/new`
+- reset
+- “刚才我们说到哪了”
+- “continue”
+- “resume”
+- “what were we doing”
+- obvious post-interruption continuation
+
+Do **not** open with generic greetings if `CURRENT_STATE.md` contains active
+work. First surface:
+- Objective
+- Current Step
+- Next Action
+- Blockers (if any)
+- Unsurfaced Results (if any)
+
+Failure to do this is a continuity failure, not a style preference.
+
+### 3. When to update CURRENT_STATE.md
+
+Update the file by **overwriting** it, not appending, at these moments:
 
 | Trigger | Why |
 |---|---|
-| User confirms a decision | Decisions are the hardest thing to reconstruct |
-| A task step completes | Marks progress so next session knows where to start |
-| An error or blocker appears | Prevents the next session from hitting the same wall |
-| Before any tool call that might take long | If gateway dies during the call, state is already saved |
-| User says "let's stop here" or similar | Explicit save point |
-| Every ~10 turns of substantive conversation | Periodic checkpoint against silent context loss |
+| User confirms a decision | Decisions are hard to reconstruct later |
+| A concrete task step completes | Marks true progress for recovery |
+| A blocker or error appears | Prevents repeated failure after reset |
+| Before long-running or risky tool work | Preserves a recovery point before interruption |
+| Before `/new` / reset-like boundary | Prevents deliberate context reset from dropping work state |
+| Before handoff / subagent exit | Preserves outputs and unsurfaced results |
+| After a substantive state change | Keeps checkpoint aligned with actual work |
 
-**The update must be quick.** Write only what changed. The entire file should
-stay under 40 lines. If you find yourself writing more, you are journaling,
-not checkpointing. Stop and compress.
+### 4. Keep the checkpoint small
 
-### 3. On `/new` or session end
+`CURRENT_STATE.md` should usually stay under about 40 lines and be readable in
+15 seconds.
 
-Before the session closes:
+If it grows too long, compress it.
+If it turns into a diary, you are using the wrong file.
 
-1. Do a final overwrite of `memory/CURRENT_STATE.md` with latest state
-2. Copy a timestamped snapshot to `memory/session_archive/YYYY-MM-DD_HH-MM.md`
-3. The snapshot is a frozen record; CURRENT_STATE.md is the live workbench
-
-If gateway crashes before you can do this, that is OK — the last mid-session
-checkpoint in CURRENT_STATE.md is your recovery point. It will not be perfect,
-but it will be vastly better than starting from zero.
-
-### 4. Result surfacing rule
+### 5. Result surfacing rule
 
 If you are a sub-agent or execution agent:
-- Before exiting, write your key results into CURRENT_STATE.md under `## Unsurfaced Results`
-- The main agent MUST check this section on startup and relay findings to the user
+- write unreported outcomes into `## Unsurfaced Results`
+- do not assume the main agent has already forwarded them
 
-This prevents the #1 silent failure: sub-agent did the work, but nobody saw it.
+This prevents a common failure mode:
+- work finished
+- result existed
+- nobody surfaced it to the user
+
+### 6. Relationship to native OpenClaw memory
+
+Do not use this skill to replace:
+- `MEMORY.md`
+- `memory/YYYY-MM-DD.md`
+- compaction summaries
+- session memory search
+
+Use it only for **active working state**.
+
+A good rule of thumb:
+- if the content matters because it is true long-term → put it in long-term memory
+- if the content matters because it tells the next session what to do next → put it here
 
 ---
 
@@ -115,13 +190,12 @@ This prevents the #1 silent failure: sub-agent did the work, but nobody saw it.
 [Results from sub-agents or tools not yet shown to user, or "None"]
 ```
 
-**Rules for this template:**
-- Every field is mandatory. Write "None" rather than omitting a section.
-- `Objective` and `Next Action` are the two most critical fields. If you can
-  only save two things before a crash, save these.
-- `Key Decisions` caps at 3 items. Older decisions belong in long-term memory,
-  not here.
-- The entire file should be readable in 15 seconds. If it takes longer, trim it.
+### Template rules
+- Every field is mandatory. Use `None` rather than omission.
+- `Objective` and `Next Action` are the two most critical fields.
+- `Key Decisions` should stay short; move older material to long-term memory.
+- `Unsurfaced Results` should be explicit, not implied.
+- If `Objective` is empty / placeholder / idle, recovery should not pretend there is active work.
 
 ---
 
@@ -133,27 +207,30 @@ Run `scripts/continuity_doctor.py` to check workspace health:
 python3 scripts/continuity_doctor.py --workspace /path/to/workspace
 ```
 
-It checks:
-- Does `memory/CURRENT_STATE.md` exist?
-- Is it stale (not updated in the last session)?
-- Does `Objective` match any active tasks file?
-- Are there `Unsurfaced Results` that were never addressed?
-- Are there session archives without a corresponding state update?
+The doctor reports only. It does **not** auto-repair.
 
-The doctor **reports only** — it does not auto-repair. You decide what to fix.
+It should help answer:
+- does `CURRENT_STATE.md` exist?
+- is it stale?
+- does it follow the template?
+- are `Unsurfaced Results` still present?
+- does recovery state look usable?
 
 ---
 
 ## What this skill is NOT
 
-- Not a long-term memory system (use OpenClaw's native markdown memory or LanceDB for that)
-- Not a conversation log or journal (CURRENT_STATE.md is overwritten, not appended)
-- Not a task manager (use OpenSpec or tasks.md for project planning)
-- Not dependent on any external database (works with plain files only)
+- Not a long-term memory system
+- Not a replacement for OpenClaw compaction
+- Not a replacement for `memoryFlush`
+- Not a replacement for session transcript memory search
+- Not a task manager or project database
+- Not a conversation log or journal
+- Not dependent on any external database
 
 ## Compatibility
 
-- Works with any OpenClaw agent (main or sub-agent)
-- No external dependencies (no npm install, no API keys, no database)
-- Backup: `git add memory/` or `cp -r memory/ /backup/` — that is the entire disaster recovery plan
-- Can coexist with memory-lancedb-pro, hippocampus, or any other memory skill
+- Works as a plain-skill fallback today
+- Compatible with main agents and subagents when they can maintain the file
+- Designed to evolve toward a **standard lifecycle plugin** as the primary runtime path
+- Intentionally avoids depending on the exclusive `contextEngine` slot as the default architecture
