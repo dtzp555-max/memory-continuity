@@ -1,51 +1,28 @@
-# CURRENT_STATE template
+# Current State
+> Last updated: [ISO timestamp]
 
-## main agent (expanded)
+## Objective
+[One sentence: what are we trying to accomplish]
 
-```md
-# CURRENT_STATE
+## Current Step
+[What step are we on, what was the last thing completed]
 
-_Last updated: YYYY-MM-DD HH:MM Australia/Brisbane_
+## Key Decisions
+- None
 
-## In Flight
-- [status] task — owner — latest milestone
+## Next Action
+[Exactly what should happen next]
 
-## Blocked / Waiting
-- item — blocker / waiting on
+## Blockers
+None
 
-## Recently Finished
-- result — why it still matters now
+## Unsurfaced Results
+None
 
-## Next
-- next action
+---
 
-## Reset Summary
-- one short paragraph explaining what matters if a new session starts now
-```
-
-Capacity:
-- target 25-40 lines
-- hard cap 50 lines
-- In Flight max 5
-- Blocked / Waiting max 5
-- Recently Finished max 3
-- Next max 5
-
-## other agents (standard)
-Use the same template, but keep it smaller.
-
-Capacity:
-- target 15-25 lines
-- hard cap 30 lines
-- In Flight max 3
-- Blocked / Waiting max 3
-- Recently Finished max 2
-- Next max 3
-
-## Allowed status values
-- planned
-- dispatched
-- in_progress
-- blocked
-- reviewing
-- done
+## Template notes
+- Use this file for **active working state**, not long-term memory.
+- Overwrite it; do not turn it into a running journal.
+- If `Objective` is empty, placeholder, or idle, recovery should not pretend active work exists.
+- In recovery scenarios, agents should surface this state before generic greetings when active work is present.

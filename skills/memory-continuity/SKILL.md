@@ -1,122 +1,236 @@
 ---
 name: memory-continuity
-description: Preserve short-term working continuity for OpenClaw agents when recent in-flight work gets lost after gateway interruption/restart, model fallback or unavailability, /new or fresh sessions, context compaction, or silent execution-agent reporting gaps. Use when you need memory/CURRENT_STATE.md, dual reporting discipline, continuity doctor checks, or repair of continuity drift across agent workspaces.
+description: >
+  Short-term working continuity for OpenClaw agents. Preserves structured
+  in-flight work state across gateway restarts, /new, reset, model fallback,
+  and context compaction. This skill is the human-readable protocol and
+  fallback layer for working-state recovery; it complements native OpenClaw
+  memory, compaction, and session memory search rather than replacing them.
+  Use when an agent needs to survive session breaks without losing what it was
+  doing.
 ---
 
-# Memory Continuity
+# memory-continuity
 
-Use this skill to prevent agents from forgetting what is currently in flight when continuity breaks in practical ways: gateway interruption/restart, model fallback/unavailability, `/new` or fresh sessions, context compaction, or worker results not being surfaced upward in time.
+Lightweight continuity layer built around a single overwrite-oriented state file
+(`memory/CURRENT_STATE.md`). Its job is simple: keep a compact, structured
+checkpoint of **what the agent is doing right now** so work can resume after
+`/new`, reset, gateway interruption, compaction, or handoff.
 
-Use `memory/CURRENT_STATE.md` as a small overwrite-oriented workbench, not as a journal.
+## Positioning
 
-## Core rules
+This skill is **not** the whole long-term architecture.
 
-- Ensure every agent workspace has `memory/CURRENT_STATE.md`
-- Keep `CURRENT_STATE.md` small
-  - main: target 25-40 lines, hard cap 50
-  - other agents: target 15-25 lines, hard cap 30
-- Required sections:
-  - `In Flight`
-  - `Blocked / Waiting`
-  - `Recently Finished`
-  - `Next`
-  - `Reset Summary`
-- Update only on state changes, not on a timer
-- Remove stale items instead of endlessly appending
+It is the current:
+- **behavior contract** for agents
+- **fallback implementation** when no plugin is installed
+- **human-readable protocol** for maintaining working-state continuity
 
-## Minimal JIRA-like workflow
+Longer term, the primary runtime path is expected to be a **standard lifecycle
+plugin** that improves save/restore reliability without consuming OpenClaw’s
+exclusive `contextEngine` slot.
 
-Keep the workflow small. Use these task states only:
-- `planned`
-- `dispatching`
-- `in_progress`
-- `blocked`
-- `reviewing`
-- `done`
+## Why this exists
 
-State meaning:
-- `planned`: task exists and has been defined
-- `dispatching`: main has initiated delegation, but does not yet have enough evidence that the worker truly launched
-- `in_progress`: worker/session has visible execution evidence
-- `blocked`: task cannot safely proceed right now (including launch failure, stalled worker, model failure, auth/tool issues)
-- `reviewing`: deliverable exists and main is validating it
-- `done`: main has accepted the result and updated Tao
+OpenClaw already has native systems for:
+- transcript persistence
+- compaction summaries
+- pre-compaction `memoryFlush`
+- session-aware `memory_search`
 
-Evidence rule:
-- Do not upgrade a task state without an evidence point.
-- Good evidence points include: non-empty worker session history, worker accepted/milestone reply, commit, branch, PR, release, or runtime log.
-- `sessions_spawn accepted` alone is not enough to claim real progress.
+Those are valuable, but they answer a different question.
 
-Timeout rules:
-- If a worker has no first visible response/evidence within 10 minutes after dispatch, mark the task `blocked` with reason `launch failure`.
-- If a worker has an ETA and passes that ETA without a milestone, mark the task `blocked` with reason `stalled`.
-- Silence is not neutral; unexplained silence is a process failure signal.
+They help with:
+- what was discussed before?
+- what knowledge or facts were written down?
 
-## Dual reporting protocol
+This skill helps with:
+- what are we doing **right now**?
+- where did we stop?
+- what should happen next?
+- what result exists but has not yet been surfaced?
 
-### Worker → main
-Execution agents must report to main at:
-- accepted
-- blocked
-- milestone
-- done
-- model/environment abnormal
+That is why `CURRENT_STATE.md` exists.
 
-Preferred reply format:
-- `status`
-- `summary`
-- `evidence`
-- `risk`
-- `next`
+## Source of truth
 
-### main → Tao
-Main must report to Tao at:
-- task formally started
-- worker truly in progress (not merely spawn-accepted)
-- blocked
-- milestone reached
-- task/phase completed
+The source of truth for working-state continuity is:
+- `memory/CURRENT_STATE.md`
 
-Preferred Tao update format:
-- who
-- status
-- output
-- next
+This file should stay:
+- short
+- structured
+- overwrite-oriented
+- readable by both humans and agents
 
-Ordering rule:
-- When a worker reports milestone/completion/blocker, first update `CURRENT_STATE.md`, then update Tao, then continue with review/commit/next dispatch.
-- If no evidence point exists yet (sessionKey with trace / commit / branch / PR / log), do not claim work has already started; say it is about to start.
+It is a **checkpoint**, not a journal.
 
-## When to use the doctor
-Run `scripts/continuity_doctor.py` when:
-- OpenClaw was upgraded
-- gateway restarted and continuity feels suspicious
-- an agent seems to have lost short-term context
-- you need to confirm `CURRENT_STATE.md` coverage across workspaces
+## File layout
 
-## How to use the doctor
-From the main workspace:
-
-```bash
-python3 skills/memory-continuity/scripts/continuity_doctor.py \\
-  --main-workspace /Users/taodeng/.openclaw/workspace/main \
-  --agents-root /Users/taodeng/.openclaw/workspaces
+```text
+$WORKSPACE/
+├── memory/
+│   ├── CURRENT_STATE.md      # live workbench (overwrite, never append-log)
+│   └── session_archive/      # optional frozen snapshots
+│       ├── 2026-03-12_14-30.md
+│       └── ...
 ```
 
-The doctor checks:
-- main `memory/CURRENT_STATE.md` exists
-- all agent workspaces have `memory/CURRENT_STATE.md`
-- required sections exist
-- line-count caps are respected
-- `AGENTS.md` still contains continuity + dual reporting rules
+---
 
-## Repair strategy
-If drift is found:
-1. Restore/create missing `memory/CURRENT_STATE.md`
-2. Restore continuity guidance in `AGENTS.md`
-3. Re-run doctor
-4. Only then investigate deeper behavioral failures
+## MANDATORY PROTOCOL
 
-## References
-- For template and limits: read `references/template.md`
-- For doctor semantics and PASS/WARN/FAIL meanings: read `references/doctor-spec.md`
+### 1. On session start or recovery-like prompts
+
+If `memory/CURRENT_STATE.md` exists:
+1. read it
+2. determine whether it contains meaningful active work
+3. if active work exists and the user is asking to continue / recover / resume,
+   **surface the recovered state before generic greeting or chit-chat**
+4. prefer truth over guessing
+
+If no active work exists:
+- normal conversation flow is fine
+
+If the file does not exist:
+- create it from the template below when work begins
+
+### 2. Recovery priority rule
+
+In recovery scenarios such as:
+- `/new`
+- reset
+- “刚才我们说到哪了”
+- “continue”
+- “resume”
+- “what were we doing”
+- obvious post-interruption continuation
+
+Do **not** open with generic greetings if `CURRENT_STATE.md` contains active
+work. First surface:
+- Objective
+- Current Step
+- Next Action
+- Blockers (if any)
+- Unsurfaced Results (if any)
+
+Failure to do this is a continuity failure, not a style preference.
+
+### 3. When to update CURRENT_STATE.md
+
+Update the file by **overwriting** it, not appending, at these moments:
+
+| Trigger | Why |
+|---|---|
+| User confirms a decision | Decisions are hard to reconstruct later |
+| A concrete task step completes | Marks true progress for recovery |
+| A blocker or error appears | Prevents repeated failure after reset |
+| Before long-running or risky tool work | Preserves a recovery point before interruption |
+| Before `/new` / reset-like boundary | Prevents deliberate context reset from dropping work state |
+| Before handoff / subagent exit | Preserves outputs and unsurfaced results |
+| After a substantive state change | Keeps checkpoint aligned with actual work |
+
+### 4. Keep the checkpoint small
+
+`CURRENT_STATE.md` should usually stay under about 40 lines and be readable in
+15 seconds.
+
+If it grows too long, compress it.
+If it turns into a diary, you are using the wrong file.
+
+### 5. Result surfacing rule
+
+If you are a sub-agent or execution agent:
+- write unreported outcomes into `## Unsurfaced Results`
+- do not assume the main agent has already forwarded them
+
+This prevents a common failure mode:
+- work finished
+- result existed
+- nobody surfaced it to the user
+
+### 6. Relationship to native OpenClaw memory
+
+Do not use this skill to replace:
+- `MEMORY.md`
+- `memory/YYYY-MM-DD.md`
+- compaction summaries
+- session memory search
+
+Use it only for **active working state**.
+
+A good rule of thumb:
+- if the content matters because it is true long-term → put it in long-term memory
+- if the content matters because it tells the next session what to do next → put it here
+
+---
+
+## CURRENT_STATE.md Template
+
+```markdown
+# Current State
+> Last updated: [ISO timestamp]
+
+## Objective
+[One sentence: what are we trying to accomplish]
+
+## Current Step
+[What step are we on, what was the last thing completed]
+
+## Key Decisions
+- [Decision 1: what was decided and why, max 3 items]
+
+## Next Action
+[Exactly what should happen next]
+
+## Blockers
+[What is preventing progress, or "None"]
+
+## Unsurfaced Results
+[Results from sub-agents or tools not yet shown to user, or "None"]
+```
+
+### Template rules
+- Every field is mandatory. Use `None` rather than omission.
+- `Objective` and `Next Action` are the two most critical fields.
+- `Key Decisions` should stay short; move older material to long-term memory.
+- `Unsurfaced Results` should be explicit, not implied.
+- If `Objective` is empty / placeholder / idle, recovery should not pretend there is active work.
+
+---
+
+## Continuity Doctor (optional)
+
+Run `scripts/continuity_doctor.py` to check workspace health:
+
+```bash
+python3 scripts/continuity_doctor.py --workspace /path/to/workspace
+```
+
+The doctor reports only. It does **not** auto-repair.
+
+It should help answer:
+- does `CURRENT_STATE.md` exist?
+- is it stale?
+- does it follow the template?
+- are `Unsurfaced Results` still present?
+- does recovery state look usable?
+
+---
+
+## What this skill is NOT
+
+- Not a long-term memory system
+- Not a replacement for OpenClaw compaction
+- Not a replacement for `memoryFlush`
+- Not a replacement for session transcript memory search
+- Not a task manager or project database
+- Not a conversation log or journal
+- Not dependent on any external database
+
+## Compatibility
+
+- Works as a plain-skill fallback today
+- Compatible with main agents and subagents when they can maintain the file
+- Designed to evolve toward a **standard lifecycle plugin** as the primary runtime path
+- Intentionally avoids depending on the exclusive `contextEngine` slot as the default architecture
