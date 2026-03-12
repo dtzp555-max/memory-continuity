@@ -16,10 +16,20 @@ It is **not** a runtime transport fix.
 It does **not** create stable bidirectional communication between OpenClaw agents, subagents, or ACP sessions.
 It does **not** guarantee parent-first completion routing, persistent child↔parent conversation, or reliable agent-to-agent backchannels.
 
+## Current usability status
+
+**Important:** this skill should currently be treated as **not usable as a communication-layer solution**.
+
+More explicitly:
+- it is **not production-ready** for solving inter-agent communication
+- it is **not a fix** for OpenClaw / ACP runtime instability
+- it may still be used as a **dispatch-format reference**, but not as proof that agent-to-agent communication is working
+
 Current project status:
 - treat this skill as useful only for **process discipline**
 - do **not** treat it as a solution to ACP / subagent communication instability
 - if stable agent-to-agent communication is needed, wait for OpenClaw / ACP runtime support to mature first
+- development aimed at true inter-agent communication is currently **frozen pending upstream/runtime stability**
 
 ## Goal
 
