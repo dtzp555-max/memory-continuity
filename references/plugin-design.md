@@ -1,4 +1,4 @@
-# Memory Continuity Plugin Design
+# Memory Continuity Lifecycle Plugin Design
 
 ## Status
 Design draft only. No plugin implementation yet.
