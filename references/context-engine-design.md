@@ -1,18 +1,30 @@
-# Memory Continuity ContextEngine Design
+# Memory Continuity Plugin Design
 
 ## Status
 Design draft only. No plugin implementation yet.
 
-## Why a ContextEngine version exists
+## Current architectural choice
+Memory continuity should **not** use the `ContextEngine` slot as its primary v1 architecture.
+
+Reason:
+- `contextEngine` is an **exclusive slot** in OpenClaw
+- users should not be forced to choose between memory continuity and context engines such as `lossless-claw`
+- context compression is a broad baseline need; working-state recovery is an additional capability
+
+Therefore the main path is:
+- **skill + ordinary lifecycle plugin** as the primary architecture
+- **ContextEngine integration** kept as a future option, not the default implementation target
+
+## Why a plugin version exists
 The current `memory-continuity` skill is useful, but it depends too much on agent cooperation:
 - the agent must notice recovery conditions
 - the agent must keep `memory/CURRENT_STATE.md` updated
 - the agent often benefits from `read`
 
-OpenClaw now exposes a formal `ContextEngine` extension point. That gives memory continuity a runtime-aligned path forward without modifying OpenClaw core.
+A lifecycle plugin gives a runtime-aligned way to improve reliability without modifying OpenClaw core and without consuming the exclusive ContextEngine slot.
 
 ## Product strategy
-Keep two product forms:
+Keep three forms with clear roles:
 
 ### A. Skill version
 Role:
@@ -21,13 +33,19 @@ Role:
 - template discipline
 - compatibility with environments that do not install plugins
 
-### B. ContextEngine plugin version
+### B. Lifecycle plugin version (primary runtime path)
 Role:
-- runtime-backed recovery
-- continuity snapshot injection without depending on `read`
-- stronger compaction and subagent continuity
+- runtime-assisted recovery
+- automatic checkpointing at key lifecycle points
+- better startup and `/new` continuity
+- coexistence with `lossless-claw` and other context engines
 
-These two forms should complement each other, not compete.
+### C. ContextEngine version (future option)
+Role:
+- more powerful prompt-time snapshot injection via `assemble` / `systemPromptAddition`
+- only worth pursuing later if slot tradeoffs are acceptable or composite engine support exists
+
+These forms should complement each other, not compete.
 
 ## Source of truth
 Primary durable checkpoint file:
@@ -35,7 +53,7 @@ Primary durable checkpoint file:
 
 The plugin should treat this file as the editable, human-readable source of truth for working state.
 
-The plugin may derive an internal lightweight snapshot from it, but should not replace it with an opaque database-first design.
+The plugin may derive a lighter runtime snapshot from it, but should not replace it with an opaque database-first design.
 
 ## Non-goals
 The plugin version should **not**:
@@ -43,20 +61,23 @@ The plugin version should **not**:
 - replace daily notes in `memory/YYYY-MM-DD.md`
 - replace native OpenClaw compaction summaries
 - replace native `memoryFlush`
+- replace session transcript memory search
 - persist a full transcript mirror
 - inject large recovery payloads into every turn
+- attempt real-time bidirectional state synchronization in v1
 
 ## Core runtime idea
-Use the ContextEngine lifecycle to ensure that short-term working state remains available across:
+Use standard lifecycle hooks to ensure that short-term working state remains available across:
 - `/new`
 - reset/restart
 - compaction
-- subagent boundaries
+- session end / restart-like boundaries
+- limited subagent handoff scenarios when supported by available hooks
 
 The plugin should prefer deterministic, structured recovery over free-form recollection.
 
 ## Desired user-visible property
-Even if an agent lacks `read`, the session should still have a compact continuity hint when there is active work worth recovering.
+Even if an agent lacks `read`, the session should still recover a compact continuity hint whenever there is meaningful active work to recover.
 
 ## Checkpoint schema
 The checkpoint file should retain a stable, minimal structure:
@@ -92,7 +113,7 @@ Potential future additions if truly needed:
 But the default should stay compact.
 
 ## Runtime snapshot shape
-The plugin should inject a much smaller summary than the raw file.
+The plugin should derive a much smaller summary than the raw checkpoint file.
 
 Target content:
 - Objective
@@ -100,73 +121,126 @@ Target content:
 - Last Confirmed Result or Key Decision(s)
 - Next Action
 - Blockers
+- Unsurfaced Results
 - Freshness / Updated At
 
 ### Draft example
 ```text
 CONTINUITY SNAPSHOT
 Objective: Verify memory continuity for Telegram subagents.
-Current Step: Tools fixed; validating runtime-backed recovery design.
-Key Decision: Use skill as fallback, ContextEngine as long-term path.
-Next Action: Finalize plugin scope and hook responsibilities.
+Current Step: Tools fixed; validating plugin-backed recovery design.
+Key Decision: Use lifecycle plugin as primary path; ContextEngine stays optional.
+Next Action: Finalize hook mapping and update the skill docs.
 Blockers: None.
+Unsurfaced Results: None.
 Updated: 2026-03-12T22:00:00+10:00
 ```
 
 ### Size target
 - preferred: ~150-300 tokens
-- avoid large raw file injection on every turn
+- avoid large raw checkpoint injection on every turn
 - skip injection entirely when there is no meaningful active state
 
-## ContextEngine lifecycle mapping
+### V1 rule for “meaningful active work”
+Treat work as active when:
+- `Objective` is non-empty
+- and `Objective` is not placeholder text such as `None`, `idle`, `n/a`, or an empty template marker
 
-### 1. `bootstrap`
+This rule can be refined later, but v1 should use a simple deterministic threshold.
+
+## Primary lifecycle hook mapping
+
+### 1. Startup hook (`before_agent_start` / closest available startup hook)
 Purpose:
-- initialize plugin-managed continuity state for a session
-- verify whether a checkpoint file exists
-- record whether recovery state is available
+- establish whether recovery state exists
+- load a compact continuity summary for startup recovery behavior
+- ensure recovery can happen even when the agent does not explicitly call `read`
 
 Should do:
 - check for `memory/CURRENT_STATE.md`
 - perform lightweight validation
-- avoid heavy prompt injection here
-
-Should not do:
-- inject large content directly
-- rewrite the checkpoint file unnecessarily
-
-Reasoning:
-`bootstrap` should establish availability, not spend tokens.
-
----
-
-### 2. `assemble`
-Purpose:
-- the main recovery injection point
-
-Should do:
-- load/derive a very small continuity snapshot
-- return it via `systemPromptAddition`
-- inject only when the checkpoint indicates meaningful active work
-- favor stable, structured wording
+- derive a compact startup continuity hint when active work exists
+- make recovery state available through the startup/lifecycle hook path supported by OpenClaw
 
 Should avoid:
-- injecting the full checkpoint file by default
-- injecting stale or placeholder content
-- adding snapshot text when objective/current step are empty or obviously idle
+- rewriting the checkpoint unnecessarily
+- injecting large raw file content
+- treating placeholder/idle state as active recovery material
 
-This is the key mechanism that enables baseline continuity **without requiring `read`**.
+Notes:
+- exact injection mechanism depends on the standard plugin hook surface available in OpenClaw
+- this design intentionally does **not** assume access to ContextEngine-only `systemPromptAddition`
 
 ---
 
-### 3. `afterTurn`
+### 2. `/new` hook (`command:new` or equivalent)
 Purpose:
-- opportunistic maintenance of checkpoint state after a completed turn
+- create a reliable checkpoint right before the user deliberately resets conversational continuity
+
+Should do:
+- save a final overwrite-style checkpoint before reset
+- optionally archive the outgoing checkpoint if that remains part of the skill design
+- ensure the next session can recover active work from a deterministic file state
+
+Should avoid:
+- expensive archival behavior for trivial idle sessions
+- losing unsurfaced results at reset boundaries
+
+---
+
+### 3. Session end / run-end hook (`agent_end` or closest available end hook)
+Purpose:
+- checkpoint work at natural lifecycle boundaries
+
+Should do:
+- persist the latest working-state checkpoint when a meaningful state change occurred
+- preserve unsurfaced results
+- act as a safety net when the agent followed the protocol imperfectly during the turn
+
+Should avoid:
+- noisy writes on obviously trivial/no-op turns
+- assuming this hook alone is enough for correctness
+
+---
+
+### 4. Compaction hooks (`session:compact:before` / equivalent)
+Purpose:
+- hard safety checkpoint before compaction removes detailed older context
+
+Should do:
+- force a final continuity checkpoint before compaction
+- preserve current objective / step / blockers / unsurfaced results
+- ensure recovery remains possible after compaction
+
+Critical requirement:
+- checkpoint writing in the compaction path must complete **synchronously** before compaction proceeds
+- if the hook cannot provide that guarantee, this risk must be documented explicitly
+
+This is the strongest required protection point.
+
+---
+
+### 5. Post-turn maintenance hook (when available)
+Purpose:
+- opportunistic checkpoint maintenance after substantive turns
 
 Should do:
 - update checkpoint when meaningful state changes are detected
 - optionally use a configurable cadence (for example every N substantive turns)
 - keep writes overwrite-oriented rather than append-heavy
+
+V1 definition of **substantive turn**:
+A turn counts as substantive when it includes at least one of:
+- a tool result that materially changes work state
+- a user confirmation of a decision or direction
+- an agent statement that a concrete step was completed
+- a newly discovered blocker or newly surfaced result
+
+Non-substantive examples:
+- greetings
+- acknowledgements
+- short clarifications without state change
+- filler chatter
 
 Should avoid:
 - writing on every trivial turn
@@ -174,52 +248,22 @@ Should avoid:
 - becoming the only write path
 
 Practical stance:
-- `afterTurn` is a maintenance path, not the only safety net
+- post-turn maintenance is useful, but not sufficient alone
 - correctness should not rely entirely on semantic heuristics
 
----
+## Subagent continuity stance for v1
+V1 should stay conservative.
 
-### 4. `compact`
-Purpose:
-- hard safety checkpoint before compaction loses older detailed history
+### Allowed in v1
+- parent → child: minimal seed/handoff when a suitable hook/path exists
+- child → parent: limited recovery of `Unsurfaced Results`
 
-Should do:
-- force a final continuity checkpoint before compaction
-- preserve current objective / step / blockers / unsurfaced results
-- ensure recovery remains possible after compaction
+### Explicitly out of scope in v1
+- continuous bidirectional synchronization
+- real-time merge of parent and child working state
+- multi-worker consensus state
 
-This is the strongest required protection point.
-
-If any lifecycle hook must be treated as mandatory continuity insurance, this is the one.
-
----
-
-### 5. `prepareSubagentSpawn`
-Purpose:
-- seed child continuity with the minimum parent working-state context
-
-First implementation should stay simple:
-- prepare a lightweight child seed from parent objective + current step
-- avoid over-copying parent state
-- prefer a minimal handoff
-
-Initial scope suggestion:
-- include only what the child needs to start coherently
-- do not attempt full bidirectional synchronization in v1
-
----
-
-### 6. `onSubagentEnded`
-Purpose:
-- reclaim continuity-relevant child outputs when the child lifecycle ends
-
-First implementation should stay simple:
-- inspect whether child state contains meaningful `Unsurfaced Results`
-- optionally merge a compact result summary back into parent continuity state
-
-Caution:
-- parent/child sync can become complex quickly
-- v1 should prefer conservative merge behavior over ambitious automation
+This keeps the first implementation tractable and reduces process risk.
 
 ## Interaction with native OpenClaw systems
 
@@ -239,18 +283,36 @@ Memory continuity should complement that by providing:
 - a stable recovery surface
 - explicit next-step / blocker / unsurfaced-result fields
 
+### With session transcript memory search
+Session memory search can help retrieve prior conversational material.
+
+Memory continuity is different:
+- memory search helps answer “what did we discuss?”
+- continuity helps answer “what were we doing, and what should happen next?”
+
 ### With tools like `read`
 `read` remains valuable for enhanced recovery and debugging.
 
-But baseline continuity should not require `read` once the plugin injects a small snapshot during `assemble`.
+But baseline continuity should not depend on `read` once the lifecycle plugin can expose recovery state through startup/runtime hooks.
+
+### With ContextEngine plugins such as `lossless-claw`
+This is the main architectural reason the lifecycle-plugin path is preferred.
+
+Because `contextEngine` is an exclusive slot, making memory continuity a ContextEngine by default would force users to choose between:
+- context compression / context assembly plugins
+- working-state continuity
+
+V1 should avoid creating that conflict.
 
 ## Open design questions
-1. How should stale checkpoints be detected and labeled?
-2. Should the plugin compute confidence/freshness automatically?
-3. What is the best trigger for "active work exists"?
-4. How much of `CURRENT_STATE.md` should be normalized vs preserved verbatim?
+1. Which exact standard hook surface is best for startup recovery injection on current OpenClaw releases?
+2. How should stale checkpoints be detected and labeled?
+3. Should the plugin compute confidence/freshness automatically?
+4. How should the plugin expose a startup continuity hint without relying on ContextEngine-only `systemPromptAddition`?
 5. Should plugin writes go directly to `memory/CURRENT_STATE.md`, or stage then atomically replace?
-6. How should main/subagent continuity boundaries behave when multiple workers are active?
+6. How should compaction-hook guarantees be validated in practice?
+7. What is the safest minimal parent/child handoff path under current OpenClaw hook support?
+8. Under what future conditions would a ContextEngine variant become worth the slot tradeoff?
 
 ## Recommended implementation phases
 
@@ -260,31 +322,36 @@ But baseline continuity should not require `read` once the plugin injects a smal
 - clarify scope vs non-goals
 - improve validation / doctor behavior
 
-### Phase 2 — Minimal plugin MVP
-- register context engine
-- implement `bootstrap`
-- implement `assemble` with `systemPromptAddition`
-- implement `compact` forced checkpoint
-- leave subagent lifecycle hooks minimal or no-op initially
+### Phase 2 — Minimal lifecycle plugin MVP
+- register a standard plugin
+- implement startup recovery hook behavior
+- implement `/new` checkpoint behavior
+- implement end-of-run checkpoint behavior
+- implement compaction-path checkpoint behavior if the hook guarantees are sufficient
 
 ### Phase 3 — Reliability improvements
-- add controlled `afterTurn` checkpointing
+- add controlled post-turn checkpointing
 - add freshness/confidence labeling
 - improve stale-state handling
-- tune injection length
+- tune snapshot length and injection behavior
 
-### Phase 4 — Subagent continuity
-- implement minimal `prepareSubagentSpawn`
-- implement conservative `onSubagentEnded`
-- validate parent/child merge behavior in real workflows
+### Phase 4 — Conservative subagent support
+- add minimal parent → child seed behavior when safe
+- add conservative child → parent unsurfaced-result recovery
+- validate handoff behavior in real workflows
+
+### Phase 5 — Future option evaluation
+- reassess whether a ContextEngine variant is worth building
+- only pursue if slot tradeoffs are acceptable or composite-engine support exists
 
 ## Success criteria
 The plugin version is successful when:
 - reset/new sessions recover active work without depending on `read`
 - compaction no longer destroys actionable in-flight state
-- subagent continuity improves without excessive prompt bloat
-- the snapshot remains small enough to be practical on every assembled turn
-- behavior aligns with OpenClaw’s official plugin/context-engine model
+- the agent does not lose unsurfaced results at reset-like boundaries
+- the runtime path coexists with `lossless-claw` and similar context engines
+- startup recovery improves without excessive prompt bloat
+- behavior aligns with OpenClaw’s official plugin and hook model
 
 ## Short summary
-The ContextEngine plugin version should become the **runtime-backed continuity layer**, while the existing skill remains the **human-readable protocol and fallback behavior contract**.
+The primary long-term implementation should be a **standard lifecycle plugin** that improves continuity without consuming the exclusive ContextEngine slot, while the existing skill remains the **human-readable protocol and fallback behavior contract**. A ContextEngine variant remains a future option, not the default architecture.
