@@ -34,6 +34,7 @@
 
 ## 6) Ops / security notes
 - Ensure `~/.openclaw/openclaw.json` is not world-readable; prefer permission mode **600**.
+- **Gateway control rule (important):** on Tao’s machine, do **not** run `openclaw gateway stop` as part of recovery/reload work. Stopping the gateway can cut off the agent’s own control path, and the service may then require Tao to manually run `openclaw gateway install` to restore it. Preferred action is `openclaw gateway restart` only when truly needed, and first check `openclaw gateway status` before touching the service.
 
 ## 7) Model policy (current preference)
 - Historical temporary preference once was: all subagents **primary** = `openai-codex/gpt-5.2`, **fallback** = `github-copilot/claude-opus-4.6`.
