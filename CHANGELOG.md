@@ -26,3 +26,6 @@ This release marks the transition from a skill-only continuity package to a
 
 ### Pending
 - Experiment C (compaction-path verification) remains pending because no real compaction event was triggered in the earlier pressure test
+
+### Known limitation in this alpha
+- Reliable continuity recovery is currently validated for resident subagents, **not** for Discord main/channel/thread sessions. Fresh Discord tests did not preserve short facts or concrete working-state details across new sessions.

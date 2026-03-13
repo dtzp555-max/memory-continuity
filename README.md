@@ -28,6 +28,15 @@ That is the problem this skill solves.
 
 ## Current architecture stance
 
+> **Alpha support boundary (`v0.3.0-probe`)**
+>
+> Currently validated:
+> - resident subagent startup continuity
+>
+> Not currently supported / not yet validated for reliable recovery:
+> - Discord main/channel/thread continuity
+>
+
 This repository should now be understood as a **continuity package**, not just a standalone skill.
 
 ### Included forms
