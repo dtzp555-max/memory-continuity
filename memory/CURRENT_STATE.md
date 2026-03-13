@@ -1,26 +1,28 @@
-# CURRENT_STATE
+# Current State
+> Last updated: 2026-03-13T07:02:00+10:00
 
-_Last updated: 2026-03-09 15:01 Australia/Brisbane_
+## Objective
+Validate the memory-continuity lifecycle plugin path safely after upgrade.
 
-## In Flight
-- [in_progress] anti-silence workflow hardening — main — workflow rules hardened again after finding a completion-consumption bug: runtime worker results can reach Tao before main updates state and summarizes them; ACP smoke-test heartbeat is now paused because repeated blocked/no-change updates became noise
-- [in_progress] Geopolitical Turbulance Trapper planning — main — project scope has been re-anchored using Tao's restored chats + old Claude draft; project moved out of OpenClaw workspace to `~/Projects/geopolitical-turbulance-trapper`, next step is HK-first data/verification layer in the external project repo
+## Current Step
+Startup-injection testing is confirmed on multiple resident subagents after the upgrade; Discord main/channel/thread paths have now been tested and are not currently supported for reliable continuity recovery; compaction-path testing is now being prepared on `travel_assistant` as the disposable session.
 
-## Blocked / Waiting
-- [blocked] ACP + Codex smoke test — main — 15:01 watchdog timeout re-check: tracked ACP Codex session still has no messages/history or visible artifact trace at all, so status remains blocked / no change and should be treated as an ACP launch/config-path blocker, not in-progress execution
-- [failed] Geopolitical Turbulence Trapper workflow test — main — previous flow test failed: planned workers (`data_worker`, `strategy_worker`, `dashboard_worker`) never produced launch/execution evidence, yet main reported progress as if work were underway
+## Key Decisions
+- Keep `SKILL.md + standard lifecycle plugin` as the primary architecture.
+- Treat ContextEngine as a future option, not the v1 default.
+- Do not force compaction on the main live session just to test Experiment C.
+- Use disposable resident subagent sessions for future compaction-path testing.
+- `travel_assistant` is now a valid sample again after removing the old wrong workspace and fixing its `AGENTS.md` startup rule to read `memory/CURRENT_STATE.md`.
+- Alpha support boundary is now explicit: resident subagent startup continuity is supported; Discord main/channel/thread continuity is not yet supported in `v0.3.0-probe`.
 
-## Recently Finished
-- promo_worker packaging pass completed — added MIT LICENSE to execution-agent-planner and gh-pr-release-flow, added README related-project links across OCM/clawkeeper/skill repos, merged OCM PR #12, published clawkeeper v0.1.0
-- Tao's original 1-5 task list completed (clawkeeper switch --dry-run, OCM checklist, repo rule detector, execution-agent dispatch drill, OCM CLI copy helper)
-- All recurring cron jobs disabled except Daily OpenClaw backup
-- GPT-5.4 support restored again after update-related breakage; if it breaks again, report Tao immediately
+## Next Action
+Use `travel_assistant` as the sacrificial session, reload the updated probe logging, then force/accelerate a real compaction event and compare hook behavior against the failure chain seen on main.
 
-## Next
-- continue Geopolitical Turbulance Trapper from planning into verified HK-first data/derivatives workflow
-- apply CURRENT_STATE + dual reporting rules in practice
-- later decide whether to package continuity workflow as a skill, clawkeeper feature, or both
-- monitor GPT-5.4 availability and report any fallback/unavailability immediately
+## Blockers
+Experiment C still lacks a real compaction event, so compaction-hook behavior remains unproven.
 
-## Reset Summary
-- We finished Tao’s original 1-5 task list. Current focus is continuity and anti-silence hardening: every agent now has a CURRENT_STATE file, and main/worker reporting rules are being formalized so work can survive /new, restart, and worker stalls.
+## Unsurfaced Results
+- Experiment A is now confirmed on multiple resident subagents.
+- `tech_geek` recovered plugin-injected startup continuity state without using `read`.
+- `travel_assistant` also recovered the correct upgraded smoke-test state after fixing its old workspace pollution and startup rule.
+- Fresh Discord main/channel/thread tests failed to preserve short facts or concrete working-state recovery across new sessions; treat Discord main continuity as unsupported for this alpha.
