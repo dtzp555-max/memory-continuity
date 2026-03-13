@@ -29,3 +29,5 @@ Two-track next step:
 - `tech_geek` recovered plugin-injected startup continuity state without using `read`.
 - `travel_assistant` also recovered the correct upgraded smoke-test state after fixing its old workspace pollution and startup rule.
 - Fresh Discord main/channel/thread tests failed to preserve short facts or concrete working-state recovery across new sessions; treat Discord main continuity as unsupported for this alpha.
+- New execution-model finding: main can successfully dispatch and consume results from temporary subagents (single, follow-up, and parallel two-worker tests all succeeded).
+- New ACP finding: Codex ACP worker is validated as a usable execution worker for main; Claude ACP today remains an invalid sample because Tao confirmed Claude was already in timeout/overuse state, so do not classify that failure as product/runtime evidence.
