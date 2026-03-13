@@ -16,10 +16,13 @@ Startup-injection testing is confirmed on multiple resident subagents after the 
 - Alpha support boundary is now explicit: resident subagent startup continuity is supported; Discord main/channel/thread continuity is not yet supported in `v0.3.0-probe`.
 
 ## Next Action
-Use `travel_assistant` as the sacrificial session, reload the updated probe logging, then force/accelerate a real compaction event and compare hook behavior against the failure chain seen on main.
+Two-track next step:
+1. If continuing active testing, use `travel_assistant` as the sacrificial session, reload the updated probe logging, then force/accelerate a real compaction event and compare hook behavior against the failure chain seen on main.
+2. If pausing for upstream uncertainty, keep the fallback-continuity GitHub issue open and wait for OpenClaw feedback before spending more effort on the main-session fallback path.
 
 ## Blockers
-Experiment C still lacks a real compaction event, so compaction-hook behavior remains unproven.
+- Experiment C still lacks a real compaction event, so compaction-hook behavior remains unproven.
+- New upstream-suspected blocker: fallback continuity failure may be caused by OpenClaw providing incomplete plugin runtime (`workspaceDir=<missing>`) on fallback/new-session recovery path.
 
 ## Unsurfaced Results
 - Experiment A is now confirmed on multiple resident subagents.

@@ -28,6 +28,7 @@
 ## 4) ACP/Codex delegation constraints
 - Telegram channel plugin currently does **not** support `subagent_spawning` hooks → cannot bind persistent subagent sessions with `thread=true`; use `sessions_spawn(mode="run")` as workaround.
 - Current durable conclusion on `execution-agent-dispatch`: it is a **process/protocol skill**, not a fix for OpenClaw/ACP runtime communication. We previously tested parent↔child / agent↔agent flows and did **not** get stable bidirectional communication. Default behavior is still closer to spawn + announce than reliable free-form agent-to-agent conversation. Keep the skill frozen as a workflow aid only; wait for OpenClaw ACP/runtime support to become stable before resuming development aimed at true inter-agent communication.
+- New clarified split after ACP re-check on 2026-03-13: **main → ACP worker** invocation is now confirmed basically usable on this machine (ACPX installed/enabled; Codex ACP smoke test could start, inherit workspace, and read expected files). But this does **not** prove stable **agent↔agent** or **subagent↔subagent** communication over ACP. Treat the safe default as: main acts as PM/architect/reviewer, ACP workers execute tasks and report back to main; do **not** assume a reliable free-form multi-agent ACP communication mesh.
 
 ## 5) OCM (OpenClaw Manager) repo policies
 - OCM repo path: `~/.openclaw/ocm`.
