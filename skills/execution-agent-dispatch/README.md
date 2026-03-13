@@ -1,59 +1,41 @@
 # execution-agent-dispatch
 
-A lightweight skill for turning PM decisions into clear worker handoffs.
+Compatibility wrapper for the dispatch/supervision half of **`worker-orchestrator`**.
 
-## Why this exists
+## Status
 
-It is not enough to have execution agents.
-They also need a consistent way to receive work and report results.
+This README is kept only as a compatibility aid.
+The maintained source of truth is now:
 
-Without that, the system drifts into familiar failure modes:
-- vague delegation
-- role boundary drift
-- workers doing too much or too little
-- silent blocking
-- messy result reporting
+- `skills/worker-orchestrator/SKILL.md`
 
-This skill exists to standardize the handoff layer between **main** and execution agents.
+## What this wrapper still means
 
-## What it standardizes
+Use `execution-agent-dispatch` only when you specifically want the **dispatch / handoff / reporting-discipline** half of the orchestration workflow:
 
-- the task packet main sends to a worker
-- the result format a worker returns
-- when a worker must escalate instead of staying silent
-- milestone / ETA discipline for delegated work
+- turn a worker plan into a clear task packet
+- standardize worker reply format
+- enforce milestone / blocker / completion reporting
+- keep main-to-Tao forwarding discipline explicit
 
-## Core idea
+## What it is not
 
-A good worker handoff should answer:
-1. What exactly should be done?
-2. What is out of bounds?
-3. What does success look like?
-4. When should the worker report back?
-5. What should trigger escalation?
+This wrapper is **not**:
+- a runtime transport fix
+- evidence that worker↔worker or agent↔agent communication is stable
+- a substitute for upstream OpenClaw / ACP runtime support
 
-## Recommended task packet
+## Preferred modern usage
 
-- Task
-- Scope
-- Deliverable
-- Constraints
-- Milestone 1 + ETA
+If the task involves both:
+- deciding the worker split
+- and dispatching / supervising workers
 
-## Recommended result packet
+then use **`worker-orchestrator`** directly.
 
-- `status:` accepted | milestone | blocked | failed | done
-- `summary:` ...
-- `evidence:` ...
-- `risk:` ...
-- `next:` ...
+## Practical takeaway
 
-## Added operational aids
-
-- `CHECKLIST.md` — pre-dispatch / post-dispatch / evidence-gate checklist for main
-- `FAILURE_TEMPLATE.md` — compact template for documenting launch failure, stall, or misreporting cases
-
-## Notes
-
-This is a dispatch / coordination skill, not an implementation skill.
-It works best after `execution-agent-planner` has already decided which workers should exist and what they should own.
+Current safe operating model remains:
+- main dispatches workers
+- workers execute and report back to main
+- main integrates and reports to Tao
