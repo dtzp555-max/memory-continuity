@@ -1,8 +1,12 @@
 # memory-continuity
 
-OpenClaw skill for **short-term working continuity** — so an agent can recover
-structured in-flight work state after `/new`, reset, gateway interruption,
-model fallback, or compaction.
+**Current release:** `v0.3.0-probe`
+
+OpenClaw continuity package for **short-term working continuity** — currently shipped as:
+- a **skill** (`SKILL.md`) for behavior contract / fallback recovery
+- a **lifecycle plugin probe** (`plugin/lifecycle-prototype.ts`) for validating the primary runtime path
+
+Its goal is to let an agent recover structured in-flight work state after `/new`, reset, gateway interruption, model fallback, or compaction.
 
 ## What problem does this solve?
 
@@ -24,12 +28,22 @@ That is the problem this skill solves.
 
 ## Current architecture stance
 
-This repository now treats the skill as:
-- a **behavior contract**
-- a **fallback implementation**
-- a **human-readable protocol** for structured working-state checkpoints
+> **Alpha support boundary (`v0.3.0-probe`)**
+>
+> Currently validated:
+> - resident subagent startup continuity
+>
+> Not currently supported / not yet validated for reliable recovery:
+> - Discord main/channel/thread continuity
+>
 
-The planned primary runtime path is a **standard lifecycle plugin** that can
+This repository should now be understood as a **continuity package**, not just a standalone skill.
+
+### Included forms
+- **Skill** = behavior contract / fallback implementation / human-readable protocol
+- **Lifecycle plugin probe** = current runtime experiment for the primary architecture
+
+The intended primary runtime path is a **standard lifecycle plugin** that can
 improve startup, `/new`, and compaction continuity **without consuming
 OpenClaw’s exclusive `contextEngine` slot**.
 
@@ -147,9 +161,12 @@ memory-continuity/
 ├── SKILL.md
 ├── README.md
 ├── LICENSE
+├── plugin/
+│   └── lifecycle-prototype.ts   # Phase 2 probe / not production yet
 ├── references/
 │   ├── template.md
-│   └── doctor-spec.md
+│   ├── doctor-spec.md
+│   └── phase2-hook-validation.md
 └── scripts/
     └── continuity_doctor.py
 ```
@@ -181,14 +198,19 @@ Strengthen the current skill version:
 - improve doctor and docs
 
 ### Phase 2
-Build a **standard lifecycle plugin** as the primary runtime path:
+Build and validate a **standard lifecycle plugin** as the primary runtime path:
 - startup recovery behavior
 - `/new` checkpointing
 - compaction-boundary checkpointing
 - end-of-run safety writes
+- hook validation in real resident subagent sessions
 
 ### Future option
 Evaluate a ContextEngine variant later only if the slot tradeoff is justified.
+
+## Release notes
+
+See `CHANGELOG.md` for the current packaged milestone history.
 
 ## License
 

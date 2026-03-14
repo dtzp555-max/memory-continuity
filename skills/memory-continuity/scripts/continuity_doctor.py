@@ -1,143 +1,236 @@
 #!/usr/bin/env python3
-from __future__ import annotations
+"""
+continuity_doctor.py — Diagnostic tool for memory-continuity skill.
+
+Checks workspace health and reports issues. Does NOT auto-repair.
+
+Usage:
+    python3 continuity_doctor.py --workspace /path/to/workspace
+    python3 continuity_doctor.py --workspace ~/.openclaw/workspace/main
+"""
 
 import argparse
+import os
+import sys
+import re
+from datetime import datetime, timezone
 from pathlib import Path
 
-REQUIRED_SECTIONS = [
-    '## In Flight',
-    '## Blocked / Waiting',
-    '## Recently Finished',
-    '## Next',
-    '## Reset Summary',
-]
 
-AGENTS_MARKERS = [
-    'CURRENT_STATE.md - Your Short-Term Workbench',
-    'Dual reporting protocol',
-    'Execution agent → main',
-    'main → Tao',
-]
+# ---------------------------------------------------------------------------
+# Severity levels
+# ---------------------------------------------------------------------------
+class Severity:
+    OK = "OK"
+    INFO = "INFO"
+    WARNING = "WARNING"
+    CRITICAL = "CRITICAL"
 
 
-def result(level: str, msg: str) -> tuple[str, str]:
-    print(f'{level:<5} {msg}')
-    return level, msg
+# ---------------------------------------------------------------------------
+# Collector
+# ---------------------------------------------------------------------------
+class DiagnosticReport:
+    def __init__(self):
+        self.entries: list[tuple[str, str]] = []
+        self._worst = Severity.OK
 
+    def add(self, severity: str, message: str):
+        self.entries.append((severity, message))
+        rank = {Severity.OK: 0, Severity.INFO: 1, Severity.WARNING: 2, Severity.CRITICAL: 3}
+        if rank.get(severity, 0) > rank.get(self._worst, 0):
+            self._worst = severity
 
-def line_count(path: Path) -> int:
-    try:
-        return len(path.read_text().splitlines())
-    except Exception:
+    def print_report(self):
+        for severity, message in self.entries:
+            tag = f"[{severity}]".ljust(12)
+            print(f"{tag}{message}")
+        print()
+        print(f"Overall status: {self._worst}")
+
+    @property
+    def exit_code(self) -> int:
+        if self._worst == Severity.CRITICAL:
+            return 2
+        if self._worst == Severity.WARNING:
+            return 1
         return 0
 
 
-def has_sections(path: Path) -> list[str]:
-    text = path.read_text()
-    missing = [s for s in REQUIRED_SECTIONS if s not in text]
-    return missing
+# ---------------------------------------------------------------------------
+# Required sections in CURRENT_STATE.md
+# ---------------------------------------------------------------------------
+REQUIRED_SECTIONS = [
+    "Objective",
+    "Current Step",
+    "Key Decisions",
+    "Next Action",
+    "Blockers",
+    "Unsurfaced Results",
+]
+
+PLACEHOLDER_PATTERNS = [
+    r"\[.*?\]",  # anything in square brackets like [One sentence: ...]
+]
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(description='Check continuity/CURRENT_STATE coverage and drift.')
-    ap.add_argument('--main-workspace', required=True)
-    ap.add_argument('--agents-root', required=True)
-    args = ap.parse_args()
+# ---------------------------------------------------------------------------
+# Checks
+# ---------------------------------------------------------------------------
 
-    main_ws = Path(args.main_workspace)
-    agents_root = Path(args.agents_root)
+def check_existence(workspace: Path, report: DiagnosticReport) -> Path | None:
+    """Check that memory/CURRENT_STATE.md exists."""
+    state_file = workspace / "memory" / "CURRENT_STATE.md"
+    if not state_file.exists():
+        report.add(Severity.CRITICAL, "memory/CURRENT_STATE.md does not exist")
+        return None
+    report.add(Severity.OK, "memory/CURRENT_STATE.md exists")
+    return state_file
 
-    failures = 0
-    warns = 0
 
-    print('continuity doctor\n')
+def check_staleness(state_file: Path, workspace: Path, report: DiagnosticReport):
+    """Check if the state file is older than the most recent activity."""
+    mtime = datetime.fromtimestamp(state_file.stat().st_mtime, tz=timezone.utc)
+    age_seconds = (datetime.now(timezone.utc) - mtime).total_seconds()
+    age_hours = age_seconds / 3600
 
-    # main AGENTS.md
-    agents_md = main_ws / 'AGENTS.md'
-    if not agents_md.exists():
-        failures += 1
-        result('FAIL', f'missing {agents_md}')
+    if age_hours > 24:
+        report.add(
+            Severity.WARNING,
+            f"CURRENT_STATE.md is stale (last modified {age_hours:.1f}h ago)",
+        )
+    elif age_hours > 4:
+        report.add(
+            Severity.INFO,
+            f"CURRENT_STATE.md last modified {age_hours:.1f}h ago",
+        )
     else:
-        text = agents_md.read_text()
-        missing = [m for m in AGENTS_MARKERS if m not in text]
-        if missing:
-            failures += 1
-            result('FAIL', f'AGENTS continuity markers missing: {", ".join(missing)}')
-        else:
-            result('PASS', 'AGENTS continuity rules present')
+        report.add(Severity.OK, f"CURRENT_STATE.md is fresh ({age_hours:.1f}h old)")
 
-    # main CURRENT_STATE
-    main_cs = main_ws / 'memory' / 'CURRENT_STATE.md'
-    if not main_cs.exists():
-        failures += 1
-        result('FAIL', 'main CURRENT_STATE missing')
+
+def check_template_compliance(state_file: Path, report: DiagnosticReport) -> dict:
+    """Check all required sections are present and not placeholder-only."""
+    content = state_file.read_text(encoding="utf-8")
+    sections_found: dict[str, str] = {}
+
+    for section in REQUIRED_SECTIONS:
+        # Match ## Section or ## Section\n
+        pattern = rf"##\s+{re.escape(section)}\s*\n(.*?)(?=\n##\s|\Z)"
+        match = re.search(pattern, content, re.DOTALL)
+        if not match:
+            report.add(Severity.WARNING, f"Missing section: ## {section}")
+            continue
+
+        body = match.group(1).strip()
+        sections_found[section] = body
+
+        # Check for placeholder text
+        if body and all(re.fullmatch(p, body) for p in PLACEHOLDER_PATTERNS):
+            report.add(Severity.INFO, f"Section '{section}' still contains placeholder text")
+
+    if len(sections_found) == len(REQUIRED_SECTIONS):
+        report.add(Severity.OK, "Template compliance: all sections present")
+
+    return sections_found
+
+
+def check_unsurfaced_results(sections: dict, report: DiagnosticReport):
+    """Check if there are unsurfaced results that need attention."""
+    results = sections.get("Unsurfaced Results", "").strip().lower()
+    if results and results != "none":
+        report.add(
+            Severity.WARNING,
+            "Unsurfaced Results section is not empty — review needed",
+        )
     else:
-        missing = has_sections(main_cs)
-        if missing:
-            failures += 1
-            result('FAIL', f'main CURRENT_STATE missing sections: {", ".join(missing)}')
-        else:
-            result('PASS', 'main CURRENT_STATE sections present')
-        n = line_count(main_cs)
-        if n > 50:
-            warns += 1
-            result('WARN', f'main CURRENT_STATE too long: {n} lines (cap 50)')
-        else:
-            result('PASS', f'main CURRENT_STATE length ok: {n} lines')
-
-    # agent workspaces
-    checked = 0
-    missing_files = []
-    missing_sections = []
-    oversize = []
-
-    if agents_root.exists():
-        for ws in sorted([p for p in agents_root.iterdir() if p.is_dir()]):
-            checked += 1
-            cs = ws / 'memory' / 'CURRENT_STATE.md'
-            if not cs.exists():
-                missing_files.append(ws.name)
-                continue
-            missing = has_sections(cs)
-            if missing:
-                missing_sections.append((ws.name, missing))
-            n = line_count(cs)
-            if n > 30:
-                oversize.append((ws.name, n))
-
-    if missing_files:
-        failures += 1
-        result('FAIL', f'agent CURRENT_STATE missing: {", ".join(missing_files)}')
-    else:
-        result('PASS', f'agent CURRENT_STATE files present: {checked}/{checked}')
-
-    if missing_sections:
-        failures += 1
-        details = '; '.join(f'{name}: {", ".join(m)}' for name, m in missing_sections)
-        result('FAIL', f'agent CURRENT_STATE missing sections: {details}')
-    else:
-        result('PASS', 'agent CURRENT_STATE sections present')
-
-    if oversize:
-        warns += 1
-        details = '; '.join(f'{name}: {n} lines' for name, n in oversize)
-        result('WARN', f'agent CURRENT_STATE oversize: {details}')
-    else:
-        result('PASS', 'agent CURRENT_STATE length caps respected')
-
-    print('\nSummary')
-    print(f'- failures: {failures}')
-    print(f'- warnings: {warns}')
-
-    if failures:
-        print('\nSuggested actions:')
-        print('1. create/restore missing CURRENT_STATE files')
-        print('2. restore AGENTS continuity section if missing')
-        print('3. trim oversized CURRENT_STATE files')
-        print('4. rerun continuity doctor')
-        return 2
-    return 0
+        report.add(Severity.OK, "No unsurfaced results pending")
 
 
-if __name__ == '__main__':
-    raise SystemExit(main())
+def check_archive(workspace: Path, sections: dict, report: DiagnosticReport):
+    """Check session archive consistency."""
+    archive_dir = workspace / "memory" / "session_archive"
+
+    if not archive_dir.exists() or not list(archive_dir.glob("*.md")):
+        report.add(Severity.INFO, "No session archives found (first session?)")
+        return
+
+    archives = sorted(archive_dir.glob("*.md"))
+    latest_archive = archives[-1]
+    report.add(Severity.OK, f"Found {len(archives)} session archive(s), latest: {latest_archive.name}")
+
+    # Compare objectives
+    current_objective = sections.get("Objective", "").strip()
+    archive_content = latest_archive.read_text(encoding="utf-8")
+    obj_match = re.search(r"##\s+Objective\s*\n(.*?)(?=\n##\s|\Z)", archive_content, re.DOTALL)
+    if obj_match:
+        archive_objective = obj_match.group(1).strip()
+        if archive_objective != current_objective and current_objective:
+            report.add(
+                Severity.INFO,
+                "Archive objective differs from current objective (task switch?)",
+            )
+
+
+def check_tasks_alignment(workspace: Path, sections: dict, report: DiagnosticReport):
+    """Optional: check if objective aligns with tasks.md if it exists."""
+    tasks_file = workspace / "tasks.md"
+    if not tasks_file.exists():
+        return
+
+    objective = sections.get("Objective", "").strip().lower()
+    if not objective:
+        return
+
+    tasks_content = tasks_file.read_text(encoding="utf-8").lower()
+    # Very rough heuristic: check if any significant word from objective appears in tasks
+    words = [w for w in objective.split() if len(w) > 4]
+    matches = sum(1 for w in words if w in tasks_content)
+    if words and matches == 0:
+        report.add(
+            Severity.INFO,
+            "Objective does not seem to match any content in tasks.md",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def run_doctor(workspace_path: str) -> int:
+    workspace = Path(workspace_path).expanduser().resolve()
+    report = DiagnosticReport()
+
+    print(f"Continuity Doctor — scanning: {workspace}")
+    print("=" * 60)
+
+    if not workspace.exists():
+        report.add(Severity.CRITICAL, f"Workspace does not exist: {workspace}")
+        report.print_report()
+        return report.exit_code
+
+    # Run all checks
+    state_file = check_existence(workspace, report)
+
+    if state_file:
+        check_staleness(state_file, workspace, report)
+        sections = check_template_compliance(state_file, report)
+        check_unsurfaced_results(sections, report)
+        check_archive(workspace, sections, report)
+        check_tasks_alignment(workspace, sections, report)
+
+    print()
+    report.print_report()
+    return report.exit_code
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Continuity Doctor — diagnose memory-continuity health"
+    )
+    parser.add_argument(
+        "--workspace",
+        required=True,
+        help="Path to the OpenClaw workspace to check",
+    )
+    args = parser.parse_args()
+    sys.exit(run_doctor(args.workspace))
