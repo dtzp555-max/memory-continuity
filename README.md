@@ -55,11 +55,20 @@ v1 direction.
 ### Install
 
 ```bash
-cd ~/.openclaw/workspace/skills/
+cd ~/.openclaw/workspace/main/skills/
 git clone https://github.com/dtzp555-max/memory-continuity.git
+cd memory-continuity
+bash scripts/post-install.sh
 ```
 
 No npm install, no API keys, no external database.
+
+> **Why `post-install.sh`?**
+> OpenClaw caches each session's skill list in a `skillsSnapshot`. If you
+> install this skill while the gateway is stopped (or restart the gateway
+> after cloning), existing sessions won't detect the new skill until their
+> snapshot is cleared. The post-install script handles this automatically.
+> New sessions created after install are unaffected.
 
 ### Test the current skill version
 
@@ -158,16 +167,19 @@ Memory continuity is for:
 
 ```text
 memory-continuity/
-├── SKILL.md
+├── SKILL.md                       # Behavior contract / skill definition
+├── skill.json                     # Skill metadata for OpenClaw loader
+├── _meta.json                     # Workspace skill registry metadata
 ├── README.md
 ├── LICENSE
 ├── plugin/
-│   └── lifecycle-prototype.ts   # Phase 2 probe / not production yet
+│   └── lifecycle-prototype.ts     # Phase 2 probe / not production yet
 ├── references/
 │   ├── template.md
 │   ├── doctor-spec.md
 │   └── phase2-hook-validation.md
 └── scripts/
+    ├── post-install.sh            # Clears stale skill snapshots
     └── continuity_doctor.py
 ```
 
