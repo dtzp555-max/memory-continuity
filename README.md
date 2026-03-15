@@ -4,6 +4,20 @@
 
 OpenClaw **lifecycle plugin** for short-term working continuity. Preserves structured in-flight work state across `/new`, reset, gateway restarts, model fallback, and context compaction.
 
+## Why this plugin?
+
+There are feature-rich memory plugins out there (vector search, semantic dedup, smart extraction). We took a different path:
+
+- **Zero dependency** — no embedding API, no vector DB, no external services
+- **Plain files** — data is markdown, human-readable, editable, greppable
+- **Hook-driven** — doesn't rely on model behavior, works with any model
+- **Backup = copy** — `cp` / `scp` / `rsync` is your entire backup strategy
+- **Migrate in seconds** — copy files to new host, done. No re-indexing, no model binding
+- **Upgrade-proof** — doesn't occupy the `contextEngine` slot, doesn't depend on OpenClaw internals
+- **Native-consistent** — aligns with OpenClaw's `memory/` file conventions
+
+If what you need is "don't lose work across sessions" rather than "semantic search over 100k memories", this plugin is for you.
+
 ## What problem does this solve?
 
 OpenClaw already preserves transcripts, compaction summaries, memory files, and session memory search. But those don't always answer the most operational question:
