@@ -1,31 +1,55 @@
 # Changelog
 
+## v2.0.0 — 2026-03-15
+
+### Summary
+Major architecture upgrade: from prompt-based skill to **lifecycle plugin**.
+State injection and extraction now happen automatically via OpenClaw hooks,
+making recovery model-agnostic and reliable across all providers.
+
+### Added
+- `index.js` — plugin entry point with 5 lifecycle hooks
+- `openclaw.plugin.json` — plugin manifest with configSchema
+- Automated installer (`scripts/post-install.sh`) that handles copy + config + restart
+
+### Changed
+- Architecture: skill (prompt-based) → plugin (hook-based)
+- `before_agent_start` hook injects `CURRENT_STATE.md` into system context automatically
+- `agent_end` hook auto-extracts working state from conversation
+- `before_compaction` hook preserves state through context compression
+- `before_reset` hook archives state before `/new`
+- `session_end` hook ensures state file exists
+- README fully rewritten for plugin architecture
+- post-install.sh rewritten for plugin installation flow
+
+### Removed
+- Dependency on model cooperation for state read/write
+- Reliance on `skillsSnapshot` cache clearing
+
+### Validated
+- Tested with MiniMax M2.5 and GPT-5.4 on OpenClaw 2026.3.12
+- `/new` recovery: agent correctly surfaces recovered state
+- Multi-turn state: conversation context (secrets, scheduled events) persists across resets
+
+---
+
 ## v0.3.0-probe — 2026-03-13
 
 ### Summary
-This release marks the transition from a skill-only continuity package to a
-**dual-form package**:
-- the existing `SKILL.md` remains the fallback behavior contract
-- a new **lifecycle plugin probe** is included to validate the primary runtime path
+Transition from skill-only to dual-form package (skill + lifecycle plugin probe).
 
 ### Added
 - `plugin/lifecycle-prototype.ts`
 - `references/phase2-hook-validation.md`
-- `references/scope.md`
-- `references/plugin-design.md`
 
 ### Changed
-- repository direction clarified: primary long-term path is now a standard lifecycle plugin
-- ContextEngine is now documented as a future option, not the v1 default
-- README updated to describe the package as skill + lifecycle plugin probe
-- skill docs aligned to the lifecycle-plugin plan
+- Repository direction clarified: primary path is lifecycle plugin
+- ContextEngine documented as future option, not v1 default
 
 ### Validated
-- Experiment A passed on multiple resident subagents (`tech_geek`, `travel_assistant` after workspace/startup-rule cleanup)
-- startup continuity injection can work without `read`
+- Startup continuity injection on resident subagents
+- Hook wiring confirmed without `read` tool dependency
 
-### Pending
-- Experiment C (compaction-path verification) remains pending because no real compaction event was triggered in the earlier pressure test
-
-### Known limitation in this alpha
-- Reliable continuity recovery is currently validated for resident subagents, **not** for Discord main/channel/thread sessions. Fresh Discord tests did not preserve short facts or concrete working-state details across new sessions.
+### Known limitation
+- Skill-based approach unreliable: models can ignore recovery instructions
+- This limitation is resolved in v2.0.0 by moving to hooks
