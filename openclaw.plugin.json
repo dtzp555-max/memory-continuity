@@ -1,0 +1,32 @@
+{
+  "id": "memory-continuity",
+  "name": "Memory Continuity",
+  "description": "Preserves working state across /new, reset, compaction, and gateway restarts via a simple markdown checkpoint file.",
+  "version": "2.0.0",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "maxStateLines": {
+        "type": "number",
+        "default": 50,
+        "description": "Max lines for CURRENT_STATE.md before auto-compress warning"
+      },
+      "archiveOnNew": {
+        "type": "boolean",
+        "default": true,
+        "description": "Archive CURRENT_STATE.md to session_archive/ on /new"
+      },
+      "autoExtract": {
+        "type": "boolean",
+        "default": true,
+        "description": "Auto-extract working state from conversation at agent_end"
+      }
+    }
+  },
+  "uiHints": {
+    "maxStateLines": { "label": "Max state file lines", "help": "Keep checkpoint small for fast recovery" },
+    "archiveOnNew": { "label": "Archive on /new", "help": "Save a snapshot before session reset" },
+    "autoExtract": { "label": "Auto-extract state", "help": "Automatically save working state when conversation ends" }
+  }
+}

@@ -1,110 +1,106 @@
 # memory-continuity
 
-**Current release:** `v0.3.0-probe`
+**Current release:** `v2.0.0`
 
-OpenClaw continuity package for **short-term working continuity** — currently shipped as:
-- a **skill** (`SKILL.md`) for behavior contract / fallback recovery
-- a **lifecycle plugin probe** (`plugin/lifecycle-prototype.ts`) for validating the primary runtime path
-
-Its goal is to let an agent recover structured in-flight work state after `/new`, reset, gateway interruption, model fallback, or compaction.
+OpenClaw **lifecycle plugin** for short-term working continuity. Preserves structured in-flight work state across `/new`, reset, gateway restarts, model fallback, and context compaction.
 
 ## What problem does this solve?
 
-OpenClaw already preserves a lot:
-- transcripts
-- compaction summaries
-- memory files
-- session memory search
-
-But those do not always answer the most operational question:
+OpenClaw already preserves transcripts, compaction summaries, memory files, and session memory search. But those don't always answer the most operational question:
 
 > What were we doing right now, where did we stop, and what should happen next?
 
-That is the problem this skill solves.
+That is the problem this plugin solves.
 
 **One-line summary:**
 - long-term memory = what you know
 - memory continuity = what you are doing right now
 
-## Current architecture stance
+## How it works
 
-> **Alpha support boundary (`v0.3.0-probe`)**
->
-> Currently validated:
-> - resident subagent startup continuity
->
-> Not currently supported / not yet validated for reliable recovery:
-> - Discord main/channel/thread continuity
->
+The plugin uses OpenClaw lifecycle hooks to **automatically** save and restore working state — no model cooperation needed.
 
-This repository should now be understood as a **continuity package**, not just a standalone skill.
+| Hook | What it does |
+|---|---|
+| `before_agent_start` | Reads `memory/CURRENT_STATE.md` and injects it into the agent's system context |
+| `before_compaction` | Injects state before compaction so it survives context compression |
+| `before_reset` | Archives current state to `session_archive/` before `/new` |
+| `agent_end` | Auto-extracts working state from conversation if no explicit state exists |
+| `session_end` | Ensures `CURRENT_STATE.md` exists for future sessions |
 
-### Included forms
-- **Skill** = behavior contract / fallback implementation / human-readable protocol
-- **Lifecycle plugin probe** = current runtime experiment for the primary architecture
-
-The intended primary runtime path is a **standard lifecycle plugin** that can
-improve startup, `/new`, and compaction continuity **without consuming
-OpenClaw’s exclusive `contextEngine` slot**.
-
-A ContextEngine implementation remains a **future option**, not the default
-v1 direction.
+Because state injection happens at the hook level (before the model sees anything), it works with **any model** — GPT-4o, MiniMax, Claude, etc.
 
 ## Quick Start
 
 ### Install
 
 ```bash
-cd ~/.openclaw/workspace/main/skills/
+# Clone the plugin
 git clone https://github.com/dtzp555-max/memory-continuity.git
+
+# Run the installer
 cd memory-continuity
 bash scripts/post-install.sh
 ```
 
+The installer will:
+1. Copy the plugin to `~/.openclaw/extensions/memory-continuity/`
+2. Add the plugin entry to `~/.openclaw/openclaw.json`
+3. Restart the gateway
+
 No npm install, no API keys, no external database.
 
-> **Why `post-install.sh`?**
-> OpenClaw caches each session's skill list in a `skillsSnapshot`. If you
-> install this skill while the gateway is stopped (or restart the gateway
-> after cloning), existing sessions won't detect the new skill until their
-> snapshot is cleared. The post-install script handles this automatically.
-> New sessions created after install are unaffected.
-
-### Test the current skill version
-
-1. Start a multi-step task with your agent
-2. Make a few concrete decisions
-3. Check whether `memory/CURRENT_STATE.md` exists and reflects the work state
-4. Trigger `/new`
-5. Ask a recovery question like:
-   - “刚才我们说到哪了”
-   - “continue”
-   - “what were we doing”
-
-A good recovery should surface the current objective / step / next action,
-not generic small talk.
-
-### Run the doctor
+### Verify
 
 ```bash
-python3 scripts/continuity_doctor.py --workspace ~/.openclaw/workspace
+openclaw gateway restart 2>&1 | grep memory-continuity
+# Should show: [memory-continuity] Plugin registered successfully
 ```
 
-## How the current skill version works
+### Test
 
-The skill defines a discipline around one file:
-- `memory/CURRENT_STATE.md`
+1. Tell your agent something memorable (e.g., "I'll tell you a secret: Ethan is super kid")
+2. Send `/new` to reset the session
+3. Ask "what was the secret?" or "我们刚才聊到哪了"
+4. The agent should immediately surface the recovered state
 
-That file is the short-term workbench for active work. It is:
-- overwritten, not appended
-- intentionally short
-- structured for fast recovery
+## Configuration
 
-### The checkpoint shape
+The plugin works with zero configuration. Optional settings in `openclaw.json`:
+
+```json
+{
+  "plugins": {
+    "entries": {
+      "memory-continuity": {
+        "enabled": true,
+        "hooks": {
+          "allowPromptInjection": true
+        },
+        "config": {
+          "maxStateLines": 50,
+          "archiveOnNew": true,
+          "autoExtract": true
+        }
+      }
+    }
+  }
+}
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `maxStateLines` | `50` | Max lines for CURRENT_STATE.md |
+| `archiveOnNew` | `true` | Archive state to `session_archive/` before `/new` |
+| `autoExtract` | `true` | Auto-extract state from conversation at session end |
+
+## The checkpoint file
+
+The plugin maintains one file: `$WORKSPACE/memory/CURRENT_STATE.md`
 
 ```markdown
 # Current State
-> Last updated: 2026-03-12T14:30:00Z
+> Last updated: 2026-03-15T14:00:00Z
 
 ## Objective
 Build the user authentication module
@@ -114,7 +110,6 @@ Completed JWT token generation, starting refresh endpoint
 
 ## Key Decisions
 - Using RS256 for token signing (user approved)
-- Token expiry: 15 minutes access, 7 days refresh
 
 ## Next Action
 Implement POST /auth/refresh endpoint
@@ -126,103 +121,67 @@ None
 None
 ```
 
-## Recovery rules
+This file is:
+- **Overwritten**, not appended (it's a checkpoint, not a journal)
+- **Human-readable** plain markdown
+- **Portable** — just copy the file to backup or migrate
+- **Model-agnostic** — injected via hooks, not dependent on model behavior
 
-In recovery scenarios, the skill expects the agent to prioritize:
-- Objective
-- Current Step
-- Next Action
-- Blockers
-- Unsurfaced Results
+## Backup & Migration
 
-A generic greeting should **not** outrank recovery state when the checkpoint
-contains active work.
+```bash
+# Backup
+cp $WORKSPACE/memory/CURRENT_STATE.md /backup/
 
-## Relationship to native OpenClaw features
+# Migrate to another machine
+scp -r ~/.openclaw/extensions/memory-continuity/ newhost:~/.openclaw/extensions/
+scp $WORKSPACE/memory/CURRENT_STATE.md newhost:$WORKSPACE/memory/
+```
 
-### Native OpenClaw already handles
-- transcript persistence
-- compaction
-- pre-compaction `memoryFlush`
-- session memory search
-- system prompt/bootstrap assembly
+No database, no vector embeddings, no API keys to transfer.
 
-### memory-continuity adds
-- a **structured working-state checkpoint**
-- explicit short-term recovery fields
-- a deterministic place to look for active work state
-- explicit handling for `Unsurfaced Results`
+## Architecture: Plugin vs Skill
 
-### Important boundary
-Session memory search is useful for:
-- “what did we discuss before?”
-- “what decision was mentioned in a prior session?”
+Previous versions (v0.x) shipped as a **skill** — a markdown file that asked the model to read/write `CURRENT_STATE.md`. This was unreliable because models could ignore the instructions.
 
-Memory continuity is for:
-- “what are we doing right now?”
-- “where did we stop?”
-- “what should happen next?”
+v2.0 is a **lifecycle plugin** that uses OpenClaw hooks. The key difference:
+
+| | Skill (v0.x) | Plugin (v2.0) |
+|---|---|---|
+| State injection | Model must read the file | Hook injects automatically |
+| State saving | Model must write the file | Hook saves automatically |
+| Model dependency | Requires model cooperation | Model-agnostic |
+| Reliability | Varies by model | Consistent |
+
+The skill (`SKILL.md`) is retained as documentation and fallback protocol.
 
 ## Repository layout
 
 ```text
 memory-continuity/
-├── SKILL.md                       # Behavior contract / skill definition
-├── skill.json                     # Skill metadata for OpenClaw loader
-├── _meta.json                     # Workspace skill registry metadata
+├── openclaw.plugin.json           # Plugin manifest
+├── index.js                       # Plugin entry point (hooks)
+├── SKILL.md                       # Behavior contract / protocol docs
 ├── README.md
 ├── LICENSE
 ├── plugin/
-│   └── lifecycle-prototype.ts     # Phase 2 probe / not production yet
+│   └── lifecycle-prototype.ts     # Original prototype (reference)
 ├── references/
 │   ├── template.md
 │   ├── doctor-spec.md
 │   └── phase2-hook-validation.md
 └── scripts/
-    ├── post-install.sh            # Clears stale skill snapshots
-    └── continuity_doctor.py
-```
-
-At runtime, the skill works primarily with:
-
-```text
-$WORKSPACE/
-└── memory/
-    ├── CURRENT_STATE.md
-    └── session_archive/
+    ├── post-install.sh            # Automated installer
+    └── continuity_doctor.py       # Health check
 ```
 
 ## Design principles
 
-1. **Files are the source of truth**
-2. **Structured checkpoint beats free-form recollection**
-3. **Recovery must prefer truth over confident guessing**
-4. **This complements native OpenClaw memory; it does not replace it**
-5. **Read access is helpful, but should not be the only long-term path**
-6. **The primary plugin direction should coexist with other ecosystem plugins such as `lossless-claw`**
-
-## Current roadmap
-
-### Phase 1
-Strengthen the current skill version:
-- tighten recovery behavior
-- tighten checkpoint discipline
-- improve doctor and docs
-
-### Phase 2
-Build and validate a **standard lifecycle plugin** as the primary runtime path:
-- startup recovery behavior
-- `/new` checkpointing
-- compaction-boundary checkpointing
-- end-of-run safety writes
-- hook validation in real resident subagent sessions
-
-### Future option
-Evaluate a ContextEngine variant later only if the slot tradeoff is justified.
-
-## Release notes
-
-See `CHANGELOG.md` for the current packaged milestone history.
+1. **Files are the source of truth** — plain markdown, no database
+2. **Hooks over prompts** — don't rely on model behavior
+3. **Zero external dependencies** — no API keys, no vector DB
+4. **Portable and backupable** — `cp` is your backup tool
+5. **Complements native OpenClaw memory** — does not replace it
 
 ## License
 
