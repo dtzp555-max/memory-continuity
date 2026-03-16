@@ -51,20 +51,7 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
   echo "  You'll need to manually add the plugin entry."
 else
   # Check if memory-continuity entry already exists
-  if python3 -c "
-import json, sys
-with open('$CONFIG_FILE') as f:
-    data = json.load(f)
-entries = data.get('plugins', {}).get('entries', {})
-if 'memory-continuity' in entries:
-    print('exists')
-    sys.exit(0)
-else:
-    sys.exit(1)
-" 2>/dev/null; then
-    echo "  Plugin entry already exists in config"
-  else
-    # Add the plugin entry and plugins.allow trust list
+  # Always ensure allow list, install record, and entry are present (idempotent)
     python3 -c "
 import json
 path = '$CONFIG_FILE'
@@ -90,11 +77,18 @@ data['plugins']['entries']['memory-continuity'] = {
         'autoExtract': True
     }
 }
+# Add install record for provenance tracking (eliminates untracked-code warning)
+if 'installs' not in data['plugins']:
+    data['plugins']['installs'] = {}
+data['plugins']['installs']['memory-continuity'] = {
+    'source': 'path',
+    'installPath': '~/.openclaw/extensions/memory-continuity',
+    'sourcePath': '$REPO_DIR'
+}
 with open(path, 'w') as f:
     json.dump(data, f, indent=2)
-print('  Added plugin entry and trust config')
+print('  Added plugin entry, trust config, and install record')
 " 2>/dev/null || echo "  WARNING: Could not update config automatically. Add manually."
-  fi
 fi
 
 # Step 3: Restart gateway

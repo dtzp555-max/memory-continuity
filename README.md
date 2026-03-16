@@ -60,8 +60,9 @@ bash scripts/post-install.sh
 The installer will:
 1. Copy the plugin to `~/.openclaw/extensions/memory-continuity/`
 2. Add the plugin entry to `~/.openclaw/openclaw.json`
-3. Add `memory-continuity` to `plugins.allow` (trust list — eliminates provenance warnings)
-4. Restart the gateway
+3. Add `memory-continuity` to `plugins.allow` (trust list)
+4. Add install record to `plugins.installs` (provenance tracking)
+5. Restart the gateway
 
 No npm install, no API keys, no external database.
 
