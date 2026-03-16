@@ -238,20 +238,23 @@ const plugin = {
       const statePath = resolveStatePath(ws);
       if (!statePath) return;
 
-      // If there's already a meaningful state file, don't overwrite with
-      // auto-extracted content (agent or user wrote it explicitly)
-      const existing = readFile(statePath);
-      if (existing && buildSnapshot(existing)) {
-        log.info?.("[memory-continuity] Existing state is meaningful, skipping auto-extract");
+      // Always extract from the latest conversation — the whole point is to
+      // capture what happened *this* session so the next session can recover.
+      const newState = extractStateFromMessages(event?.messages);
+      if (!newState) {
+        log.info?.("[memory-continuity] No extractable state from conversation");
         return;
       }
 
-      // Extract from conversation messages
-      const newState = extractStateFromMessages(event?.messages);
-      if (!newState) return;
+      // Archive previous state if it exists
+      const existing = readFile(statePath);
+      if (existing) {
+        const archivePath = statePath.replace(/CURRENT_STATE\.md$/, `STATE_ARCHIVE_${Date.now()}.md`);
+        writeFile(archivePath, existing);
+      }
 
       writeFile(statePath, newState);
-      log.info?.("[memory-continuity] Auto-extracted state from conversation");
+      log.info?.("[memory-continuity] Updated state from conversation");
     }, { priority: 90 }); // low priority, run after other hooks
 
     // ------------------------------------------------------------------
