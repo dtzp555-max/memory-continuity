@@ -157,42 +157,42 @@ scp $WORKSPACE/memory/CURRENT_STATE.md newhost:$WORKSPACE/memory/
 
 No database, no vector embeddings, no API keys to transfer.
 
-## OpenClaw 升级后恢复
+## Recovery after OpenClaw upgrade
 
-OpenClaw 升级（`npm update -g openclaw`）**不会覆盖** `~/.openclaw/openclaw.json` 用户配置。但如果插件行为异常，按以下步骤排查和恢复：
+OpenClaw upgrades (`npm update -g openclaw`) **do not overwrite** the user config at `~/.openclaw/openclaw.json`. However, if the plugin stops working after an upgrade, follow these steps:
 
-### 快速诊断
+### Quick diagnosis
 
 ```bash
-# 检查插件是否加载
+# Check if the plugin is loaded
 openclaw gateway restart 2>&1 | grep memory-continuity
-# 应输出: [memory-continuity] Plugin registered successfully
+# Expected: [memory-continuity] Plugin registered successfully
 
-# 检查配置是否完整
+# Verify config is intact
 cat ~/.openclaw/openclaw.json | grep -A2 memory-continuity
 ```
 
-### 常见故障与恢复
+### Common issues and fixes
 
-| 症状 | 原因 | 恢复方法 |
-|------|------|---------|
-| 启动日志无 `Plugin registered` | 插件文件缺失或配置丢失 | 重跑 `bash scripts/post-install.sh` |
-| `plugins.allow is empty` 警告 | `openclaw.json` 中 `plugins.allow` 被清空 | 添加 `"plugins.allow": ["memory-continuity"]` |
-| `loaded without provenance` 警告 | `plugins.installs` 记录丢失 | 添加 `"plugins.installs": {"memory-continuity": {"source": "path"}}` |
-| 新版本改了钩子 API | OpenClaw breaking change | 查看 [CHANGELOG](CHANGELOG.md)，更新 `index.js` |
-| 状态不恢复但无报错 | Session 缓存了旧的 skillsSnapshot | `/new` 开新 session，或重跑 `post-install.sh`（会清缓存） |
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| No `Plugin registered` in startup log | Plugin files missing or config lost | Re-run `bash scripts/post-install.sh` |
+| `plugins.allow is empty` warning | `plugins.allow` was cleared in config | Add `"plugins.allow": ["memory-continuity"]` |
+| `loaded without provenance` warning | `plugins.installs` record missing | Add `"plugins.installs": {"memory-continuity": {"source": "path"}}` |
+| New version changed hook API | OpenClaw breaking change | Check [CHANGELOG](CHANGELOG.md), update `index.js` |
+| State not recovering, no errors | Session cached stale skillsSnapshot | `/new` to start fresh session, or re-run `post-install.sh` (clears cache) |
 
-### 一键恢复
+### One-command recovery
 
-出现任何问题，重跑安装脚本即可（幂等，可重复执行）：
+The install script is idempotent — safe to re-run at any time:
 
 ```bash
-cd ~/.openclaw/projects/memory-continuity   # 或你 clone 的位置
-git pull                                     # 拉取最新版本
-bash scripts/post-install.sh                 # 重新安装 + 重启 gateway
+cd ~/.openclaw/projects/memory-continuity   # or wherever you cloned it
+git pull                                     # pull latest version
+bash scripts/post-install.sh                 # reinstall + restart gateway
 ```
 
-### 升级前备份（推荐）
+### Pre-upgrade backup (recommended)
 
 ```bash
 cp ~/.openclaw/openclaw.json ~/.openclaw/openclaw.json.bak
