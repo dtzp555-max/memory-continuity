@@ -1,0 +1,19 @@
+{
+  "name": "memory-continuity",
+  "version": "2.1.0",
+  "description": "Zero-dependency memory continuity for OpenClaw — plain markdown, lifecycle hooks, no vector DB.",
+  "main": "index.js",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dtzp555-max/memory-continuity.git"
+  },
+  "keywords": ["openclaw", "plugin", "memory", "continuity"],
+  "author": "dtzp555-max",
+  "license": "MIT",
+  "openclaw": {
+    "type": "plugin",
+    "id": "memory-continuity",
+    "pluginManifest": "openclaw.plugin.json"
+  }
+}

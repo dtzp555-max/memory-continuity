@@ -1,6 +1,6 @@
 # memory-continuity
 
-**Current release:** `v2.0.0`
+**Current release:** `v2.1.0`
 
 OpenClaw **lifecycle plugin** for short-term working continuity. Preserves structured in-flight work state across `/new`, reset, gateway restarts, model fallback, and context compaction.
 
@@ -60,7 +60,8 @@ bash scripts/post-install.sh
 The installer will:
 1. Copy the plugin to `~/.openclaw/extensions/memory-continuity/`
 2. Add the plugin entry to `~/.openclaw/openclaw.json`
-3. Restart the gateway
+3. Add `memory-continuity` to `plugins.allow` (trust list — eliminates provenance warnings)
+4. Restart the gateway
 
 No npm install, no API keys, no external database.
 
@@ -85,6 +86,7 @@ The plugin works with zero configuration. Optional settings in `openclaw.json`:
 ```json
 {
   "plugins": {
+    "allow": ["memory-continuity"],
     "entries": {
       "memory-continuity": {
         "enabled": true,

@@ -37,7 +37,7 @@ fi
 
 # Copy essential plugin files (not the entire repo)
 mkdir -p "$PLUGIN_DIR"
-for f in index.js openclaw.plugin.json SKILL.md; do
+for f in index.js openclaw.plugin.json package.json SKILL.md; do
   if [[ -f "$REPO_DIR/$f" ]]; then
     cp "$REPO_DIR/$f" "$PLUGIN_DIR/"
   fi
@@ -64,7 +64,7 @@ else:
 " 2>/dev/null; then
     echo "  Plugin entry already exists in config"
   else
-    # Add the plugin entry
+    # Add the plugin entry and plugins.allow trust list
     python3 -c "
 import json
 path = '$CONFIG_FILE'
@@ -72,6 +72,11 @@ with open(path) as f:
     data = json.load(f)
 if 'plugins' not in data:
     data['plugins'] = {}
+# Add to plugins.allow so OpenClaw trusts this plugin (no provenance warning)
+allow_list = data['plugins'].get('allow', [])
+if 'memory-continuity' not in allow_list:
+    allow_list.append('memory-continuity')
+    data['plugins']['allow'] = allow_list
 if 'entries' not in data['plugins']:
     data['plugins']['entries'] = {}
 data['plugins']['entries']['memory-continuity'] = {
@@ -87,7 +92,7 @@ data['plugins']['entries']['memory-continuity'] = {
 }
 with open(path, 'w') as f:
     json.dump(data, f, indent=2)
-print('  Added plugin entry to config')
+print('  Added plugin entry and trust config')
 " 2>/dev/null || echo "  WARNING: Could not update config automatically. Add manually."
   fi
 fi

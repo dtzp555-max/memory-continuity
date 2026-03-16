@@ -1,5 +1,25 @@
 # Changelog
 
+## v2.1.0 — 2026-03-16
+
+### Summary
+Clean install experience: eliminates gateway provenance warnings for fresh installations.
+
+### Added
+- `package.json` — proper npm-style metadata with `openclaw.type: "plugin"` provenance field
+- `plugins.allow` auto-configuration in `post-install.sh` — registers plugin in OpenClaw trust list
+
+### Changed
+- `post-install.sh` now copies `package.json` to extensions directory
+- `openclaw.plugin.json` now includes `source` field pointing to GitHub repo
+- README updated with `plugins.allow` documentation and install step
+
+### Fixed
+- "plugins.allow is empty; discovered non-bundled plugins may auto-load" warning
+- "loaded without install/load-path provenance; treat as untracked local code" warning
+
+---
+
 ## v2.0.0 — 2026-03-15
 
 ### Summary
