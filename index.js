@@ -238,23 +238,48 @@ const plugin = {
       const statePath = resolveStatePath(ws);
       if (!statePath) return;
 
-      // Always extract from the latest conversation — the whole point is to
-      // capture what happened *this* session so the next session can recover.
-      const newState = extractStateFromMessages(event?.messages);
+      const messages = event?.messages;
+      if (!messages || messages.length === 0) {
+        log.info?.("[memory-continuity] No messages in session, skipping");
+        return;
+      }
+
+      // Count real user messages (exclude system, metadata-only, short commands)
+      const realUserMsgs = messages.filter(m => {
+        if (m?.role !== "user") return false;
+        const text = typeof m?.content === "string" ? m.content
+          : Array.isArray(m?.content) ? m.content.filter(b => b?.type === "text").map(b => b.text).join("\n")
+          : "";
+        const cleaned = text
+          .replace(/^Conversation info \(untrusted metadata\):[\s\S]*?\n\n/m, "")
+          .replace(/^Sender \(untrusted metadata\):[\s\S]*?\n\n/m, "")
+          .trim();
+        // Skip very short messages like "/new", "/status", single-word queries
+        return cleaned.length > 10;
+      });
+
+      // Don't overwrite meaningful state with trivial conversations
+      // (e.g., "/new" then "what was my secret?" — only 1 real message)
+      const existing = readFile(statePath);
+      if (existing && buildSnapshot(existing) && realUserMsgs.length < 2) {
+        log.info?.("[memory-continuity] Conversation too short to overwrite existing state (" + realUserMsgs.length + " real msgs)");
+        return;
+      }
+
+      const newState = extractStateFromMessages(messages);
       if (!newState) {
         log.info?.("[memory-continuity] No extractable state from conversation");
         return;
       }
 
       // Archive previous state if it exists
-      const existing = readFile(statePath);
       if (existing) {
         const archivePath = statePath.replace(/CURRENT_STATE\.md$/, `STATE_ARCHIVE_${Date.now()}.md`);
         writeFile(archivePath, existing);
       }
 
       writeFile(statePath, newState);
-      log.info?.("[memory-continuity] Updated state from conversation");
+      log.info?.("[memory-continuity] Updated state from conversation (" + realUserMsgs.length + " real msgs)");
     }, { priority: 90 }); // low priority, run after other hooks
 
     // ------------------------------------------------------------------
