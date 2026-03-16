@@ -106,7 +106,14 @@ function extractStateFromMessages(messages) {
         ? msg.content.filter(b => b?.type === "text").map(b => b.text).join("\n")
         : null;
     if (!content) continue;
-    if (role === "user") userMessages.push(content);
+    // Strip channel metadata (Telegram, Discord, etc.) from user messages
+    const cleaned = role === "user"
+      ? content
+          .replace(/^Conversation info \(untrusted metadata\):[\s\S]*?\n\n/m, "")
+          .replace(/^Sender \(untrusted metadata\):[\s\S]*?\n\n/m, "")
+          .trim()
+      : content;
+    if (role === "user" && cleaned) userMessages.push(cleaned);
     if (role === "assistant") assistantMessages.push(content);
   }
 
@@ -152,14 +159,13 @@ const plugin = {
 
   register(api) {
     const log = api.logger || console;
-    const getWorkspace = () => api.runtime?.workspaceDir;
     const getConfig = () => api.pluginConfig || {};
 
     // ------------------------------------------------------------------
     // HOOK 1: before_agent_start — inject recovered state into context
     // ------------------------------------------------------------------
     api.on("before_agent_start", async (_event, _ctx) => {
-      const ws = getWorkspace();
+      const ws = _ctx?.workspaceDir;
       const statePath = resolveStatePath(ws);
       if (!statePath) return;
 
@@ -184,7 +190,7 @@ const plugin = {
     // HOOK 2: before_compaction — inject state so it survives compaction
     // ------------------------------------------------------------------
     api.on("before_compaction", async (_event, _ctx) => {
-      const ws = getWorkspace();
+      const ws = _ctx?.workspaceDir;
       const statePath = resolveStatePath(ws);
       if (!statePath) return;
 
@@ -205,7 +211,7 @@ const plugin = {
     // HOOK 3: before_reset (/new) — archive current state
     // ------------------------------------------------------------------
     api.on("before_reset", async (_event, _ctx) => {
-      const ws = getWorkspace();
+      const ws = _ctx?.workspaceDir;
       const config = getConfig();
       if (!ws || config.archiveOnNew === false) return;
 
@@ -225,7 +231,7 @@ const plugin = {
     // HOOK 4: agent_end — extract and save working state
     // ------------------------------------------------------------------
     api.on("agent_end", async (event, _ctx) => {
-      const ws = getWorkspace();
+      const ws = _ctx?.workspaceDir;
       const config = getConfig();
       if (!ws || config.autoExtract === false) return;
 
@@ -252,7 +258,7 @@ const plugin = {
     // HOOK 5: session_end — ensure state file exists
     // ------------------------------------------------------------------
     api.on("session_end", async (_event, _ctx) => {
-      const ws = getWorkspace();
+      const ws = _ctx?.workspaceDir;
       const statePath = resolveStatePath(ws);
       if (!statePath) return;
 
