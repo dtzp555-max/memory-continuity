@@ -15,7 +15,7 @@ import sys
 import re
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Dict, List, Optional, Tuple
 
 
 # ---------------------------------------------------------------------------
@@ -33,7 +33,7 @@ class Severity:
 # ---------------------------------------------------------------------------
 class DiagnosticReport:
     def __init__(self):
-        self.entries: list[tuple[str, str]] = []
+        self.entries: List[Tuple[str, str]] = []
         self._worst = Severity.OK
 
     def add(self, severity: str, message: str):
@@ -112,7 +112,7 @@ def check_staleness(state_file: Path, workspace: Path, report: DiagnosticReport)
 def check_template_compliance(state_file: Path, report: DiagnosticReport) -> dict:
     """Check all required sections are present and not placeholder-only."""
     content = state_file.read_text(encoding="utf-8")
-    sections_found: dict[str, str] = {}
+    sections_found: Dict[str, str] = {}
 
     for section in REQUIRED_SECTIONS:
         # Match ## Section or ## Section\n

@@ -130,6 +130,22 @@ Update the file by **overwriting** it, not appending, at these moments:
 | Before handoff / subagent exit | Preserves outputs and unsurfaced results |
 | After a substantive state change | Keeps checkpoint aligned with actual work |
 
+### Override rule
+
+**CURRENT_STATE.md must always be overwritten when:**
+- A new task or objective starts — regardless of what is currently in the file
+- The previous objective is complete or abandoned
+- The user gives a new task that supersedes the previous one
+
+Having content in CURRENT_STATE.md does NOT mean it should be preserved.
+Content only matters if Objective is still active and work is genuinely in progress.
+
+Checking before overwrite:
+- Read the file
+- If Objective matches the current task → update in place (overwrite)
+- If Objective does NOT match → overwrite the entire file with the new state
+- Never append. Never skip the update because "there's already something there".
+
 ### 4. Keep the checkpoint small
 
 `CURRENT_STATE.md` should usually stay under about 40 lines and be readable in
