@@ -92,6 +92,9 @@ fi
 # ---------------------------------------------------------------------------
 echo "[3/3] Detecting OpenClaw agents ..."
 
+GRAY='\033[0;90m'
+RST='\033[0m'
+
 # detect_agents outputs lines of: INDEX|ID|DISPLAY_NAME|WORKSPACE_PATH
 # Uses python3 to parse openclaw.json; falls back gracefully if unavailable.
 detect_agents() {
@@ -136,19 +139,34 @@ for agent in agents:
 PYEOF
 }
 
-# Collect detected agents into arrays
+# Collect ALL detected agents (including non-alive) into arrays
+ALL_AGENT_IDS=()
+ALL_AGENT_NAMES=()
+ALL_AGENT_WORKSPACES=()
+
+if command -v python3 &>/dev/null && [[ -f "$CONFIG_FILE" ]]; then
+  while IFS='|' read -r idx agent_id agent_name workspace; do
+    ALL_AGENT_IDS+=("$agent_id")
+    ALL_AGENT_NAMES+=("$agent_name")
+    ALL_AGENT_WORKSPACES+=("$workspace")
+  done < <(detect_agents 2>/dev/null || true)
+fi
+
+# Filter to alive agents (workspace directory exists)
 AGENT_IDS=()
 AGENT_NAMES=()
 AGENT_WORKSPACES=()
+SKIPPED=0
 
-# Read detection output
-if command -v python3 &>/dev/null && [[ -f "$CONFIG_FILE" ]]; then
-  while IFS='|' read -r idx agent_id agent_name workspace; do
-    AGENT_IDS+=("$agent_id")
-    AGENT_NAMES+=("$agent_name")
-    AGENT_WORKSPACES+=("$workspace")
-  done < <(detect_agents 2>/dev/null || true)
-fi
+for i in "${!ALL_AGENT_IDS[@]}"; do
+  if [[ -d "${ALL_AGENT_WORKSPACES[$i]}" ]]; then
+    AGENT_IDS+=("${ALL_AGENT_IDS[$i]}")
+    AGENT_NAMES+=("${ALL_AGENT_NAMES[$i]}")
+    AGENT_WORKSPACES+=("${ALL_AGENT_WORKSPACES[$i]}")
+  else
+    SKIPPED=$((SKIPPED + 1))
+  fi
+done
 
 install_skill_to_workspace() {
   local workspace="$1"
@@ -158,8 +176,22 @@ install_skill_to_workspace() {
   echo "  Installed → ${skill_dest}/SKILL.md"
 }
 
-if [[ ${#AGENT_IDS[@]} -eq 0 ]]; then
-  # Fallback: no agents detected — ask user for a workspace path
+if [[ ${#AGENT_IDS[@]} -eq 0 && ${#ALL_AGENT_IDS[@]} -gt 0 ]]; then
+  # Config has agents but none are alive
+  echo ""
+  echo "  Found ${#ALL_AGENT_IDS[@]} agent(s) in config but their workspace directories don't exist yet."
+  echo "  You may need to initialize them first."
+  echo ""
+  printf "  Enter workspace path to install SKILL.md (or press Enter to skip): "
+  read -r FALLBACK_WS
+  if [[ -n "$FALLBACK_WS" ]]; then
+    FALLBACK_WS="${FALLBACK_WS/#\~/$HOME}"
+    install_skill_to_workspace "$FALLBACK_WS"
+  else
+    echo "  Skipped SKILL.md installation."
+  fi
+elif [[ ${#AGENT_IDS[@]} -eq 0 ]]; then
+  # No agents at all — ask user for a workspace path
   echo "  No agents detected in openclaw.json (file missing or parse error)."
   echo ""
   printf "  Enter workspace path to install SKILL.md (or press Enter to skip): "
@@ -171,17 +203,47 @@ if [[ ${#AGENT_IDS[@]} -eq 0 ]]; then
     echo "  Skipped SKILL.md installation."
   fi
 else
-  # Show numbered list
+  # Show numbered list — alive agents first, then skipped summary
   echo ""
-  echo "  Found ${#AGENT_IDS[@]} agent(s):"
+  echo "  Found ${#AGENT_IDS[@]} alive agent(s):"
   for i in "${!AGENT_IDS[@]}"; do
     num=$((i + 1))
     printf "    [%d] %s  (%s)\n" "$num" "${AGENT_NAMES[$i]}" "${AGENT_WORKSPACES[$i]}"
   done
+
+  # Show skipped (non-alive) agents in gray
+  if [[ $SKIPPED -gt 0 ]]; then
+    echo ""
+    printf "  ${GRAY}Skipped %d agent(s) with missing workspace directories:${RST}\n" "$SKIPPED"
+    for i in "${!ALL_AGENT_IDS[@]}"; do
+      if [[ ! -d "${ALL_AGENT_WORKSPACES[$i]}" ]]; then
+        printf "    ${GRAY}  %s  (%s)${RST}\n" "${ALL_AGENT_NAMES[$i]}" "${ALL_AGENT_WORKSPACES[$i]}"
+      fi
+    done
+  fi
+
   echo ""
-  echo "  Install to: [A]ll agents / [1,2,...] specific (comma-separated) / [Q]uit"
-  printf "  > "
-  read -r SELECTION
+  echo "  Install to: [A]ll alive agents (default) / [1,2,...] specific / [Q]uit"
+  printf "  > (10s timeout, Enter or no input = All) "
+
+  # Auto-select All if stdin is not a tty (pipe/CI) or on timeout
+  if [[ ! -t 0 ]]; then
+    SELECTION="A"
+    echo "(non-interactive: auto-selecting All)"
+  elif read -t 10 -r SELECTION; then
+    # User provided input (possibly empty = Enter)
+    : # SELECTION is set
+  else
+    # Timeout — default to All
+    echo ""
+    echo "  (timeout — defaulting to All)"
+    SELECTION=""
+  fi
+
+  # Empty input (Enter or timeout) defaults to All
+  if [[ -z "$SELECTION" ]]; then
+    SELECTION="A"
+  fi
 
   case "${SELECTION^^}" in
     A|ALL)

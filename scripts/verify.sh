@@ -121,6 +121,8 @@ PYEOF
 }
 
 if $ALL_AGENTS; then
+  GRAY='\033[0;90m'
+
   echo -e "\n${BOLD}memory-continuity — Multi-Agent Verifier${RESET}"
   echo "────────────────────────────────────────────"
 
@@ -134,10 +136,33 @@ if $ALL_AGENTS; then
     exit 1
   fi
 
+  # Filter to alive agents (workspace directory exists)
+  ALIVE_LINES=()
+  SKIPPED=0
+  for line in "${AGENT_LINES[@]}"; do
+    IFS='|' read -r agent_id agent_name agent_ws <<< "$line"
+    if [[ -d "$agent_ws" ]]; then
+      ALIVE_LINES+=("$line")
+    else
+      echo -e "  ${GRAY}Skipping ${agent_name} (${agent_id}) — workspace not found: ${agent_ws}${RESET}"
+      SKIPPED=$((SKIPPED + 1))
+    fi
+  done
+
+  if [[ $SKIPPED -gt 0 ]]; then
+    echo -e "  ${GRAY}Skipped ${SKIPPED} agent(s) with missing workspace directories${RESET}"
+  fi
+
+  if [[ ${#ALIVE_LINES[@]} -eq 0 ]]; then
+    echo -e "${YELLOW}All ${#AGENT_LINES[@]} agent(s) in config have missing workspace directories.${RESET}"
+    echo -e "${YELLOW}You may need to initialize them first.${RESET}"
+    exit 1
+  fi
+
   TOTAL_PASS=0
   TOTAL_FAIL=0
 
-  for line in "${AGENT_LINES[@]}"; do
+  for line in "${ALIVE_LINES[@]}"; do
     IFS='|' read -r agent_id agent_name agent_ws <<< "$line"
     echo -e "\n${BOLD}Agent: ${agent_name} (${agent_id})${RESET}"
     echo -e "  Workspace: ${agent_ws}"
@@ -194,7 +219,9 @@ if $ALL_AGENTS; then
 
   echo ""
   echo "────────────────────────────────────────────"
-  echo -e "${BOLD}Summary: ${TOTAL_PASS} passed, ${TOTAL_FAIL} failed (of ${#AGENT_LINES[@]} agents)${RESET}"
+  SUMMARY_DETAIL=""
+  [[ $SKIPPED -gt 0 ]] && SUMMARY_DETAIL=", ${SKIPPED} skipped (no workspace)"
+  echo -e "${BOLD}Summary: ${TOTAL_PASS} passed, ${TOTAL_FAIL} failed (of ${#ALIVE_LINES[@]} alive agents${SUMMARY_DETAIL})${RESET}"
   [[ $TOTAL_FAIL -gt 0 ]] && exit 1 || exit 0
 fi
 
