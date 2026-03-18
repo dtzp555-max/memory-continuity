@@ -4,7 +4,7 @@
 # This script:
 #   1. Copies the plugin to ~/.openclaw/extensions/memory-continuity/
 #   2. Adds the plugin entry to openclaw.json (if not present)
-#   3. Restarts the gateway
+#   3. Detects OpenClaw agents and installs SKILL.md to selected workspaces
 #
 # Usage:
 #   bash scripts/post-install.sh
@@ -50,16 +50,13 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
   echo "  WARNING: $CONFIG_FILE not found. Skipping config update."
   echo "  You'll need to manually add the plugin entry."
 else
-  # Check if memory-continuity entry already exists
-  # Always ensure allow list, install record, and entry are present (idempotent)
-    python3 -c "
+  python3 -c "
 import json
 path = '$CONFIG_FILE'
 with open(path) as f:
     data = json.load(f)
 if 'plugins' not in data:
     data['plugins'] = {}
-# Add to plugins.allow so OpenClaw trusts this plugin (no provenance warning)
 allow_list = data['plugins'].get('allow', [])
 if 'memory-continuity' not in allow_list:
     allow_list.append('memory-continuity')
@@ -77,7 +74,6 @@ data['plugins']['entries']['memory-continuity'] = {
         'autoExtract': True
     }
 }
-# Add install record for provenance tracking (eliminates untracked-code warning)
 if 'installs' not in data['plugins']:
     data['plugins']['installs'] = {}
 data['plugins']['installs']['memory-continuity'] = {
@@ -91,23 +87,142 @@ print('  Added plugin entry, trust config, and install record')
 " 2>/dev/null || echo "  WARNING: Could not update config automatically. Add manually."
 fi
 
-# Step 3: Restart gateway
-echo "[3/3] Restarting gateway ..."
-if command -v openclaw &>/dev/null; then
-  if openclaw gateway status 2>&1 | grep -q "running"; then
-    openclaw gateway restart 2>/dev/null && echo "  Gateway restarted" || echo "  Gateway restart failed — try: openclaw gateway restart"
+# ---------------------------------------------------------------------------
+# Step 3: Detect agents and install SKILL.md to selected workspaces
+# ---------------------------------------------------------------------------
+echo "[3/3] Detecting OpenClaw agents ..."
+
+# detect_agents outputs lines of: INDEX|ID|DISPLAY_NAME|WORKSPACE_PATH
+# Uses python3 to parse openclaw.json; falls back gracefully if unavailable.
+detect_agents() {
+  if [[ ! -f "$CONFIG_FILE" ]]; then
+    return 1
+  fi
+
+  python3 - "$CONFIG_FILE" "$OPENCLAW_DIR" <<'PYEOF'
+import json, sys, os
+
+config_file = sys.argv[1]
+openclaw_dir = sys.argv[2]
+
+with open(config_file) as f:
+    data = json.load(f)
+
+default_ws = data.get('defaults', {}).get('workspace', os.path.join(openclaw_dir, 'workspace', 'main'))
+
+agents = data.get('list', [])
+seen = set()
+idx = 1
+
+for agent in agents:
+    agent_id = agent.get('id', '')
+    if not agent_id or agent_id in seen:
+        continue
+    seen.add(agent_id)
+
+    name = agent.get('name', agent_id)
+    workspace = agent.get('workspace', default_ws if agent_id == 'main' else None)
+
+    # Skip agents without a resolvable workspace
+    if not workspace:
+        workspace = os.path.join(openclaw_dir, 'workspaces', agent_id)
+
+    # Expand ~ in path
+    workspace = os.path.expanduser(workspace)
+
+    print('{}|{}|{}|{}'.format(idx, agent_id, name, workspace))
+    idx += 1
+
+PYEOF
+}
+
+# Collect detected agents into arrays
+AGENT_IDS=()
+AGENT_NAMES=()
+AGENT_WORKSPACES=()
+
+# Read detection output
+if command -v python3 &>/dev/null && [[ -f "$CONFIG_FILE" ]]; then
+  while IFS='|' read -r idx agent_id agent_name workspace; do
+    AGENT_IDS+=("$agent_id")
+    AGENT_NAMES+=("$agent_name")
+    AGENT_WORKSPACES+=("$workspace")
+  done < <(detect_agents 2>/dev/null || true)
+fi
+
+install_skill_to_workspace() {
+  local workspace="$1"
+  local skill_dest="${workspace}/skills/memory-continuity"
+  mkdir -p "$skill_dest"
+  cp "$REPO_DIR/SKILL.md" "$skill_dest/SKILL.md"
+  echo "  Installed → ${skill_dest}/SKILL.md"
+}
+
+if [[ ${#AGENT_IDS[@]} -eq 0 ]]; then
+  # Fallback: no agents detected — ask user for a workspace path
+  echo "  No agents detected in openclaw.json (file missing or parse error)."
+  echo ""
+  printf "  Enter workspace path to install SKILL.md (or press Enter to skip): "
+  read -r FALLBACK_WS
+  if [[ -n "$FALLBACK_WS" ]]; then
+    FALLBACK_WS="${FALLBACK_WS/#\~/$HOME}"
+    install_skill_to_workspace "$FALLBACK_WS"
   else
-    echo "  Gateway not running — start it with: openclaw gateway start"
+    echo "  Skipped SKILL.md installation."
   fi
 else
-  echo "  openclaw command not found — install OpenClaw first"
+  # Show numbered list
+  echo ""
+  echo "  Found ${#AGENT_IDS[@]} agent(s):"
+  for i in "${!AGENT_IDS[@]}"; do
+    num=$((i + 1))
+    printf "    [%d] %s  (%s)\n" "$num" "${AGENT_NAMES[$i]}" "${AGENT_WORKSPACES[$i]}"
+  done
+  echo ""
+  echo "  Install to: [A]ll agents / [1,2,...] specific (comma-separated) / [Q]uit"
+  printf "  > "
+  read -r SELECTION
+
+  case "${SELECTION^^}" in
+    A|ALL)
+      for i in "${!AGENT_IDS[@]}"; do
+        install_skill_to_workspace "${AGENT_WORKSPACES[$i]}"
+      done
+      ;;
+    Q|QUIT)
+      echo "  Skipped SKILL.md installation."
+      ;;
+    *)
+      # Parse comma-separated numbers
+      IFS=',' read -ra PICKS <<< "$SELECTION"
+      INSTALLED=0
+      for pick in "${PICKS[@]}"; do
+        pick="${pick// /}"  # trim spaces
+        if [[ "$pick" =~ ^[0-9]+$ ]]; then
+          idx=$((pick - 1))
+          if [[ $idx -ge 0 && $idx -lt ${#AGENT_IDS[@]} ]]; then
+            install_skill_to_workspace "${AGENT_WORKSPACES[$idx]}"
+            INSTALLED=$((INSTALLED + 1))
+          else
+            echo "  WARNING: No agent at index $pick — skipped."
+          fi
+        else
+          echo "  WARNING: Invalid selection '$pick' — skipped."
+        fi
+      done
+      if [[ $INSTALLED -eq 0 ]]; then
+        echo "  No valid selections — SKILL.md not installed."
+      fi
+      ;;
+  esac
 fi
 
 echo ""
 echo "=== Installation complete ==="
 echo ""
 echo "Verify with:"
-echo "  openclaw gateway restart 2>&1 | grep memory-continuity"
+echo "  bash scripts/verify.sh"
+echo "  bash scripts/verify.sh --all-agents"
 echo ""
 echo "Test with:"
 echo "  1. Tell your agent something memorable"

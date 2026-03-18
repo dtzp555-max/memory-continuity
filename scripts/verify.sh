@@ -2,11 +2,12 @@
 # verify.sh — Verify memory-continuity installation (3-layer check)
 #
 # Usage:
-#   bash scripts/verify.sh [--workspace PATH] [--sample]
+#   bash scripts/verify.sh [--workspace PATH] [--sample] [--all-agents]
 #
 # Options:
 #   --workspace PATH   Override default workspace (~/.openclaw/workspace/main)
 #   --sample           Show a sample high-importance CURRENT_STATE.md
+#   --all-agents       Run 3-layer check across all detected agent workspaces
 
 set -euo pipefail
 
@@ -31,6 +32,7 @@ header() { echo -e "\n${BOLD}$*${RESET}"; }
 # ---------------------------------------------------------------------------
 WORKSPACE="${HOME}/.openclaw/workspace/main"
 SHOW_SAMPLE=false
+ALL_AGENTS=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -38,6 +40,8 @@ while [[ $# -gt 0 ]]; do
       WORKSPACE="$2"; shift 2 ;;
     --sample)
       SHOW_SAMPLE=true; shift ;;
+    --all-agents)
+      ALL_AGENTS=true; shift ;;
     *)
       echo "Unknown argument: $1" >&2; exit 1 ;;
   esac
@@ -83,6 +87,115 @@ window (UTC+10, Thursday 23:00). Do NOT proceed without explicit sign-off.
 - Staging dry-run log: /tmp/pt-osc-staging-2026-03-19.log (not yet reviewed for warnings)
 EOF
   exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# --all-agents: detect all agent workspaces and run checks for each
+# ---------------------------------------------------------------------------
+OPENCLAW_DIR="${OPENCLAW_STATE_DIR:-$HOME/.openclaw}"
+CONFIG_FILE="$OPENCLAW_DIR/openclaw.json"
+PLUGIN_DIR_SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+detect_all_agent_workspaces() {
+  if [[ ! -f "$CONFIG_FILE" ]] || ! command -v python3 &>/dev/null; then
+    return 1
+  fi
+  python3 - "$CONFIG_FILE" "$OPENCLAW_DIR" <<'PYEOF'
+import json, sys, os
+config_file = sys.argv[1]
+openclaw_dir = sys.argv[2]
+with open(config_file) as f:
+    data = json.load(f)
+default_ws = data.get('defaults', {}).get('workspace', os.path.join(openclaw_dir, 'workspace', 'main'))
+seen = set()
+for agent in data.get('list', []):
+    agent_id = agent.get('id', '')
+    if not agent_id or agent_id in seen:
+        continue
+    seen.add(agent_id)
+    name = agent.get('name', agent_id)
+    workspace = agent.get('workspace', default_ws if agent_id == 'main' else os.path.join(openclaw_dir, 'workspaces', agent_id))
+    workspace = os.path.expanduser(workspace)
+    print('{}|{}|{}'.format(agent_id, name, workspace))
+PYEOF
+}
+
+if $ALL_AGENTS; then
+  echo -e "\n${BOLD}memory-continuity — Multi-Agent Verifier${RESET}"
+  echo "────────────────────────────────────────────"
+
+  AGENT_LINES=()
+  while IFS= read -r line; do
+    AGENT_LINES+=("$line")
+  done < <(detect_all_agent_workspaces 2>/dev/null || true)
+
+  if [[ ${#AGENT_LINES[@]} -eq 0 ]]; then
+    echo -e "${RED}No agents detected. Is openclaw.json present and python3 available?${RESET}"
+    exit 1
+  fi
+
+  TOTAL_PASS=0
+  TOTAL_FAIL=0
+
+  for line in "${AGENT_LINES[@]}"; do
+    IFS='|' read -r agent_id agent_name agent_ws <<< "$line"
+    echo -e "\n${BOLD}Agent: ${agent_name} (${agent_id})${RESET}"
+    echo -e "  Workspace: ${agent_ws}"
+
+    AGENT_ERRORS=0
+    AGENT_WARNINGS=0
+
+    # Layer 1: SKILL.md in workspace
+    SKILL_PATH="${agent_ws}/skills/memory-continuity/SKILL.md"
+    if [[ -f "$SKILL_PATH" ]]; then
+      ok "SKILL.md installed"
+    else
+      fail "SKILL.md missing at ${SKILL_PATH}"
+      AGENT_ERRORS=$((AGENT_ERRORS + 1))
+    fi
+
+    # Layer 2: continuity_doctor.py
+    DOCTOR="${PLUGIN_DIR_SELF}/scripts/continuity_doctor.py"
+    if command -v python3 &>/dev/null && [[ -f "$DOCTOR" ]]; then
+      if python3 "$DOCTOR" --workspace "$agent_ws" &>/dev/null; then
+        ok "continuity_doctor.py passed"
+      else
+        warn "continuity_doctor.py exited non-zero"
+        AGENT_WARNINGS=$((AGENT_WARNINGS + 1))
+      fi
+    else
+      warn "python3 or continuity_doctor.py unavailable — skipped"
+      AGENT_WARNINGS=$((AGENT_WARNINGS + 1))
+    fi
+
+    # Layer 3: CURRENT_STATE.md
+    STATE_FILE="${agent_ws}/memory/CURRENT_STATE.md"
+    if [[ ! -f "$STATE_FILE" ]]; then
+      warn "CURRENT_STATE.md not found (normal for new installs)"
+      AGENT_WARNINGS=$((AGENT_WARNINGS + 1))
+    else
+      LINE_COUNT=$(grep -c '[^[:space:]]' "$STATE_FILE" || true)
+      if [[ $LINE_COUNT -gt 2 ]]; then
+        ok "CURRENT_STATE.md present (${LINE_COUNT} non-blank lines)"
+      else
+        warn "CURRENT_STATE.md appears empty or placeholder"
+        AGENT_WARNINGS=$((AGENT_WARNINGS + 1))
+      fi
+    fi
+
+    if [[ $AGENT_ERRORS -eq 0 ]]; then
+      echo -e "  ${GREEN}→ PASS${RESET} (${AGENT_WARNINGS} warning(s))"
+      TOTAL_PASS=$((TOTAL_PASS + 1))
+    else
+      echo -e "  ${RED}→ FAIL${RESET} (${AGENT_ERRORS} error(s), ${AGENT_WARNINGS} warning(s))"
+      TOTAL_FAIL=$((TOTAL_FAIL + 1))
+    fi
+  done
+
+  echo ""
+  echo "────────────────────────────────────────────"
+  echo -e "${BOLD}Summary: ${TOTAL_PASS} passed, ${TOTAL_FAIL} failed (of ${#AGENT_LINES[@]} agents)${RESET}"
+  [[ $TOTAL_FAIL -gt 0 ]] && exit 1 || exit 0
 fi
 
 # ---------------------------------------------------------------------------
