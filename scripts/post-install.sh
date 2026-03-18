@@ -224,13 +224,13 @@ else
 
   echo ""
   echo "  Install to: [A]ll alive agents (default) / [1,2,...] specific / [Q]uit"
-  printf "  > (10s timeout, Enter or no input = All) "
+  printf "  > (20s timeout, Enter or no input = All) "
 
   # Auto-select All if stdin is not a tty (pipe/CI) or on timeout
   if [[ ! -t 0 ]]; then
     SELECTION="A"
     echo "(non-interactive: auto-selecting All)"
-  elif read -t 10 -r SELECTION; then
+  elif read -t 20 -r SELECTION; then
     # User provided input (possibly empty = Enter)
     : # SELECTION is set
   else

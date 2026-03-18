@@ -2,7 +2,7 @@
   "id": "memory-continuity",
   "name": "Memory Continuity",
   "description": "Preserves working state across /new, reset, compaction, and gateway restarts via a simple markdown checkpoint file.",
-  "version": "2.4.1",
+  "version": "2.4.2",
   "source": "https://github.com/dtzp555-max/memory-continuity",
   "configSchema": {
     "type": "object",
@@ -26,8 +26,17 @@
     }
   },
   "uiHints": {
-    "maxStateLines": { "label": "Max state file lines", "help": "Keep checkpoint small for fast recovery" },
-    "archiveOnNew": { "label": "Archive on /new", "help": "Save a snapshot before session reset" },
-    "autoExtract": { "label": "Auto-extract state", "help": "Automatically save working state when conversation ends" }
+    "maxStateLines": {
+      "label": "Max state file lines",
+      "help": "Keep checkpoint small for fast recovery"
+    },
+    "archiveOnNew": {
+      "label": "Archive on /new",
+      "help": "Save a snapshot before session reset"
+    },
+    "autoExtract": {
+      "label": "Auto-extract state",
+      "help": "Automatically save working state when conversation ends"
+    }
   }
 }
