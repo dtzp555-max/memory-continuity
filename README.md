@@ -69,6 +69,18 @@ No npm install, no API keys, no external database.
 ### Verify
 
 ```bash
+# Quick 3-layer install check (files → tool → workspace state)
+bash scripts/verify.sh
+
+# Show a sample high-importance state entry
+bash scripts/verify.sh --sample
+
+# Check against a custom workspace
+bash scripts/verify.sh --workspace ~/.openclaw/workspace/myproject
+```
+
+```bash
+# Alternatively, confirm the gateway loaded the plugin
 openclaw gateway restart 2>&1 | grep memory-continuity
 # Should show: [memory-continuity] Plugin registered successfully
 ```
@@ -230,6 +242,7 @@ memory-continuity/
 │   └── phase2-hook-validation.md
 └── scripts/
     ├── post-install.sh            # Automated installer
+    ├── verify.sh                  # 3-layer install verifier
     └── continuity_doctor.py       # Health check
 ```
 
