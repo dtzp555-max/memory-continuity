@@ -111,9 +111,9 @@ openclaw_dir = sys.argv[2]
 with open(config_file) as f:
     data = json.load(f)
 
-default_ws = data.get('defaults', {}).get('workspace', os.path.join(openclaw_dir, 'workspace', 'main'))
+default_ws = data.get('agents', {}).get('defaults', {}).get('workspace', os.path.join(openclaw_dir, 'workspace', 'main'))
 
-agents = data.get('list', [])
+agents = data.get('agents', {}).get('list', [])
 seen = set()
 idx = 1
 
