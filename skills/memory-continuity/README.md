@@ -55,11 +55,20 @@ v1 direction.
 ### Install
 
 ```bash
-cd ~/.openclaw/workspace/skills/
+cd ~/.openclaw/workspace/main/skills/
 git clone https://github.com/dtzp555-max/memory-continuity.git
+cd memory-continuity
+bash scripts/post-install.sh
 ```
 
 No npm install, no API keys, no external database.
+
+> **Why `post-install.sh`?**
+> OpenClaw caches each session's skill list in a `skillsSnapshot`. If you
+> install this skill while the gateway is stopped (or restart the gateway
+> after cloning), existing sessions won't detect the new skill until their
+> snapshot is cleared. The post-install script handles this automatically.
+> New sessions created after install are unaffected.
 
 ### Test the current skill version
 
@@ -75,10 +84,26 @@ No npm install, no API keys, no external database.
 A good recovery should surface the current objective / step / next action,
 not generic small talk.
 
+### Verify the install
+
+```bash
+bash scripts/verify.sh
+```
+
+This runs two layers of checks:
+- **Layer 1 (static):** Skill files, skill.json validity
+- **Layer 2 (doctor):** Verifies the doctor tool correctly identifies missing files, placeholder content, and non-empty unsurfaced results
+- **Layer 3 (live):** Runs doctor against your actual workspace
+
+```bash
+# See what high-stakes content looks like vs placeholder text
+bash scripts/verify.sh --sample
+```
+
 ### Run the doctor
 
 ```bash
-python3 scripts/continuity_doctor.py --workspace ~/.openclaw/workspace
+python3 scripts/continuity_doctor.py --workspace ~/.openclaw/workspace/main
 ```
 
 ## How the current skill version works
@@ -158,16 +183,20 @@ Memory continuity is for:
 
 ```text
 memory-continuity/
-├── SKILL.md
+├── SKILL.md                       # Behavior contract / skill definition
+├── skill.json                     # Skill metadata for OpenClaw loader
+├── _meta.json                     # Workspace skill registry metadata
 ├── README.md
 ├── LICENSE
 ├── plugin/
-│   └── lifecycle-prototype.ts   # Phase 2 probe / not production yet
+│   └── lifecycle-prototype.ts     # Phase 2 probe / not production yet
 ├── references/
 │   ├── template.md
 │   ├── doctor-spec.md
 │   └── phase2-hook-validation.md
 └── scripts/
+    ├── post-install.sh            # Clears stale skill snapshots
+    ├── verify.sh                  # Two-layer install verification
     └── continuity_doctor.py
 ```
 
