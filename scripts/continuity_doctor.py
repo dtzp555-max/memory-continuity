@@ -15,6 +15,7 @@ import sys
 import re
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 
 
 # ---------------------------------------------------------------------------
@@ -78,7 +79,7 @@ PLACEHOLDER_PATTERNS = [
 # Checks
 # ---------------------------------------------------------------------------
 
-def check_existence(workspace: Path, report: DiagnosticReport) -> Path | None:
+def check_existence(workspace: Path, report: DiagnosticReport) -> Optional[Path]:
     """Check that memory/CURRENT_STATE.md exists."""
     state_file = workspace / "memory" / "CURRENT_STATE.md"
     if not state_file.exists():

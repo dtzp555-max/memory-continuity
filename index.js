@@ -258,14 +258,7 @@ const plugin = {
         return cleaned.length > 10;
       });
 
-      // Don't overwrite meaningful state with trivial conversations
-      // (e.g., "/new" then "what was my secret?" — only 1 real message)
       const existing = readFile(statePath);
-      if (existing && buildSnapshot(existing) && realUserMsgs.length < 2) {
-        log.info?.("[memory-continuity] Conversation too short to overwrite existing state (" + realUserMsgs.length + " real msgs)");
-        return;
-      }
-
       const newState = extractStateFromMessages(messages);
       if (!newState) {
         log.info?.("[memory-continuity] No extractable state from conversation");
