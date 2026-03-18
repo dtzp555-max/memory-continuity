@@ -124,11 +124,7 @@ for agent in agents:
     seen.add(agent_id)
 
     name = agent.get('name', agent_id)
-    workspace = agent.get('workspace', default_ws if agent_id == 'main' else None)
-
-    # Skip agents without a resolvable workspace
-    if not workspace:
-        workspace = os.path.join(openclaw_dir, 'workspaces', agent_id)
+    workspace = agent.get('workspace', default_ws)
 
     # Expand ~ in path
     workspace = os.path.expanduser(workspace)

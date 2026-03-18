@@ -31,13 +31,14 @@ header() { echo -e "\n${BOLD}$*${RESET}"; }
 # Argument parsing
 # ---------------------------------------------------------------------------
 WORKSPACE="${HOME}/.openclaw/workspace/main"
+WORKSPACE_EXPLICIT=false
 SHOW_SAMPLE=false
 ALL_AGENTS=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --workspace)
-      WORKSPACE="$2"; shift 2 ;;
+      WORKSPACE="$2"; WORKSPACE_EXPLICIT=true; shift 2 ;;
     --sample)
       SHOW_SAMPLE=true; shift ;;
     --all-agents)
@@ -223,6 +224,33 @@ if $ALL_AGENTS; then
   [[ $SKIPPED -gt 0 ]] && SUMMARY_DETAIL=", ${SKIPPED} skipped (no workspace)"
   echo -e "${BOLD}Summary: ${TOTAL_PASS} passed, ${TOTAL_FAIL} failed (of ${#ALIVE_LINES[@]} alive agents${SUMMARY_DETAIL})${RESET}"
   [[ $TOTAL_FAIL -gt 0 ]] && exit 1 || exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# Resolve WORKSPACE from openclaw.json if not explicitly set via --workspace
+# ---------------------------------------------------------------------------
+# If not explicitly set, try to derive from the first alive agent in openclaw.json
+if ! $WORKSPACE_EXPLICIT && [[ -f "$CONFIG_FILE" ]] && command -v python3 &>/dev/null; then
+  RESOLVED_WS=$(python3 - "$CONFIG_FILE" "$OPENCLAW_DIR" <<'PYEOF'
+import json, sys, os
+config_file = sys.argv[1]
+openclaw_dir = sys.argv[2]
+try:
+    with open(config_file) as f:
+        data = json.load(f)
+    default_ws = data.get('agents', {}).get('defaults', {}).get('workspace', '')
+    for agent in data.get('agents', {}).get('list', []):
+        ws = agent.get('workspace', default_ws)
+        if ws:
+            print(os.path.expanduser(ws))
+            break
+except Exception:
+    pass
+PYEOF
+  )
+  if [[ -n "$RESOLVED_WS" ]]; then
+    WORKSPACE="$RESOLVED_WS"
+  fi
 fi
 
 # ---------------------------------------------------------------------------
