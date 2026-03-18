@@ -245,7 +245,8 @@ else
     SELECTION="A"
   fi
 
-  case "${SELECTION^^}" in
+  SELECTION_UPPER="$(echo "$SELECTION" | tr '[:lower:]' '[:upper:]')"
+  case "$SELECTION_UPPER" in
     A|ALL)
       for i in "${!AGENT_IDS[@]}"; do
         install_skill_to_workspace "${AGENT_WORKSPACES[$i]}"
