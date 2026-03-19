@@ -107,9 +107,9 @@ config_file = sys.argv[1]
 openclaw_dir = sys.argv[2]
 with open(config_file) as f:
     data = json.load(f)
-default_ws = data.get('defaults', {}).get('workspace', os.path.join(openclaw_dir, 'workspace', 'main'))
+default_ws = data.get('agents', {}).get('defaults', {}).get('workspace', os.path.join(openclaw_dir, 'workspace', 'main'))
 seen = set()
-for agent in data.get('list', []):
+for agent in data.get('agents', {}).get('list', []):
     agent_id = agent.get('id', '')
     if not agent_id or agent_id in seen:
         continue
