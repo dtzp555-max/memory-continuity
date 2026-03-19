@@ -277,6 +277,10 @@ else
 fi
 
 echo ""
+echo "🧙 启动配置向导..."
+python3 "$(dirname "$0")/setup_wizard.py" || true
+
+echo ""
 echo "=== Installation complete ==="
 echo ""
 echo "Verify with:"
