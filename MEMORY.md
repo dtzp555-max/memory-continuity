@@ -43,11 +43,9 @@
 - Required sequence before any gateway intervention: (1) run `openclaw gateway status`; (2) report findings to Tao; (3) prefer non-disruptive diagnosis first; (4) only touch gateway lifecycle if Tao explicitly approves the exact command.
 
 ## 7) Model policy (current preference)
-- Historical temporary preference once was: all subagents **primary** = `openai-codex/gpt-5.2`, **fallback** = `github-copilot/claude-opus-4.6`.
-- Current important exception / newer rule: **execution agents** (esp. `codex_worker`, and by default other workers unless Tao says otherwise) must target **primary** = `openai-codex/gpt-5.4`.
-  - **No silent fallback:** if the system falls back to any other model (or if `openai-codex/gpt-5.4` becomes unknown/unavailable), main must **immediately notify Tao**.
-  - **No auto-fallback for execution agents:** if 5.4 is unavailable, workers should not continue on another model; main should report and wait for Tao’s model decision.
-  - If an execution agent is not responding, main must consider **model unavailability/fallback** as a first-class suspected cause and **tell Tao**.
+- Current config (2026-03-21): all agents **primary** = `claude-local/claude-sonnet-4-6`, **fallback** = `openai-codex/gpt-5.4` (only one fallback; Minimax removed).
+- **铁律：Fallback 发生时必须通知 Tao。** 适用于**所有 agent**（main、tech_geek、travel_assistant、finance_assistant、所有 execution agents）。无论哪条链路触发了 fallback，都必须立即通知 Tao，说明：哪个 agent、从什么 model fallback 到了什么 model、原因（timeout / error / unavailable）。不允许静默 fallback。
+  - If an agent is not responding, main must consider **model unavailability/fallback** as a first-class suspected cause and **tell Tao**.
 - Additional long-lived execution agents initialized locally for repeat use: **docs_worker**, **qa_worker**, **ops_worker**.
 - Execution-agent system needs a standardized dispatch/handoff layer: task input template, result format, blocker/escalation rules, and a **main-to-Tao forwarding rule**.
 - **Hard reporting/forwarding protocol (must-follow):**
@@ -72,3 +70,9 @@
 - Local memory dir: `/Users/taodeng/.openclaw/workspace/main/memory/`.
 - Added `memory/INDEX.md` to classify daily notes vs topic notes vs automation state JSON (do not rename/move state JSON without updating jobs).
 - Plan: create a separate GitHub KB repo (option A) for shareable/curated knowledge; keep private/sensitive items local and only publish redacted content.
+
+## 11) Oracle Cloud
+- See [memory/oracle_cloud.md](memory/oracle_cloud.md) for SSH connection details and deployment notes.
+
+## 12) 开发原则 (Dev Principles)
+- See [memory/dev_principles.md](memory/dev_principles.md) for Tao's principles on new project development (when to reuse vs build, code quality, testing, versioning, etc.). Read before starting any new project.
