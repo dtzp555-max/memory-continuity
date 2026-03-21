@@ -2,7 +2,7 @@
   "id": "memory-continuity",
   "name": "Memory Continuity",
   "description": "Preserves working state across /new, reset, compaction, and gateway restarts via a simple markdown checkpoint file.",
-  "version": "2.6.1",
+  "version": "2.7.0",
   "source": "https://github.com/dtzp555-max/memory-continuity",
   "configSchema": {
     "type": "object",
@@ -22,6 +22,11 @@
         "type": "boolean",
         "default": true,
         "description": "Auto-extract working state from conversation at agent_end"
+      },
+      "maxArchiveCount": {
+        "type": "number",
+        "default": 20,
+        "description": "Maximum number of archive files to keep in session_archive/"
       }
     }
   },
@@ -37,6 +42,10 @@
     "autoExtract": {
       "label": "Auto-extract state",
       "help": "Automatically save working state when conversation ends"
+    },
+    "maxArchiveCount": {
+      "label": "Max archive files",
+      "help": "Old archives are auto-deleted when this limit is reached"
     }
   }
 }

@@ -1,6 +1,6 @@
 # memory-continuity
 
-**Current release:** `v2.3.0`
+**Current release:** `v2.7.0`
 
 OpenClaw **lifecycle plugin** for short-term working continuity. Preserves structured in-flight work state across `/new`, reset, gateway restarts, model fallback, and context compaction.
 
@@ -122,6 +122,7 @@ The plugin works with zero configuration. Optional settings in `openclaw.json`:
 | `maxStateLines` | `50` | Max lines for CURRENT_STATE.md |
 | `archiveOnNew` | `true` | Archive state to `session_archive/` before `/new` |
 | `autoExtract` | `true` | Auto-extract state from conversation at session end |
+| `maxArchiveCount` | `20` | Maximum archive files to keep (oldest auto-deleted) |
 
 ## The checkpoint file
 

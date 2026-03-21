@@ -5,6 +5,9 @@ import path from "node:path";
 // Constants
 // ---------------------------------------------------------------------------
 
+const MAX_ARCHIVE_COUNT = 20;
+const MAX_MEMORY_FILES = 500;
+
 const PLACEHOLDER_VALUES = new Set([
   "", "none", "n/a", "na", "idle",
   "[one sentence: what are we trying to accomplish]",
@@ -82,13 +85,58 @@ function buildSnapshot(md) {
   ].join("\n");
 }
 
-function archiveState(workspaceDir, md) {
+function archiveState(workspaceDir, md, config = {}) {
   const now = new Date();
   const pad = (n) => String(n).padStart(2, "0");
   const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}`;
   const archiveDir = path.join(workspaceDir, "memory", "session_archive");
   fs.mkdirSync(archiveDir, { recursive: true });
   fs.writeFileSync(path.join(archiveDir, `${stamp}.md`), md, "utf8");
+
+  // Enforce archive count limit
+  const maxCount = config.maxArchiveCount || MAX_ARCHIVE_COUNT;
+  const files = fs.readdirSync(archiveDir).sort();
+  if (files.length > maxCount) {
+    const toDelete = files.slice(0, files.length - maxCount);
+    for (const f of toDelete) {
+      try { fs.unlinkSync(path.join(archiveDir, f)); } catch {}
+    }
+  }
+
+  // Clean up memory directory
+  cleanupMemoryDir(workspaceDir);
+}
+
+function cleanupMemoryDir(workspaceDir) {
+  const memoryDir = path.join(workspaceDir, "memory");
+  try {
+    const entries = fs.readdirSync(memoryDir);
+
+    // Clean up legacy STATE_ARCHIVE_*.md files from memory/ root
+    const legacyArchives = entries.filter(f => /^STATE_ARCHIVE_.*\.md$/.test(f));
+    for (const f of legacyArchives) {
+      try { fs.unlinkSync(path.join(memoryDir, f)); } catch {}
+    }
+
+    // Check total file count (top level only)
+    const remaining = fs.readdirSync(memoryDir);
+    const fileEntries = remaining.filter(f => {
+      try { return fs.statSync(path.join(memoryDir, f)).isFile(); } catch { return false; }
+    });
+
+    if (fileEntries.length > MAX_MEMORY_FILES) {
+      const PROTECTED = new Set(["CURRENT_STATE.md", "MEMORY.md", "INDEX.md"]);
+      const deletable = fileEntries
+        .filter(f => !PROTECTED.has(f) && f.endsWith(".md"))
+        .map(f => ({ name: f, mtime: fs.statSync(path.join(memoryDir, f)).mtimeMs }))
+        .sort((a, b) => a.mtime - b.mtime);
+
+      const toRemove = deletable.slice(0, fileEntries.length - 450);
+      for (const { name } of toRemove) {
+        try { fs.unlinkSync(path.join(memoryDir, name)); } catch {}
+      }
+    }
+  } catch {}
 }
 
 function extractStateFromMessages(messages) {
@@ -222,7 +270,7 @@ const plugin = {
       if (!md) return;
 
       if (buildSnapshot(md)) {
-        archiveState(ws, md);
+        archiveState(ws, md, config);
         log.info?.("[memory-continuity] Archived state before /new");
       }
     }, { priority: 10 });
@@ -267,8 +315,7 @@ const plugin = {
 
       // Archive previous state if it exists
       if (existing) {
-        const archivePath = statePath.replace(/CURRENT_STATE\.md$/, `STATE_ARCHIVE_${Date.now()}.md`);
-        writeFile(archivePath, existing);
+        archiveState(ws, existing, config);
       }
 
       writeFile(statePath, newState);
