@@ -1,0 +1,13 @@
+{
+  "name": "memory-continuity",
+  "version": "2.4.0",
+  "description": "Short-term working continuity for OpenClaw agents. Preserves structured in-flight work state across gateway restarts, /new, reset, model fallback, and context compaction.",
+  "author": "dtzp555-max",
+  "license": "MIT",
+  "homepage": "https://github.com/dtzp555-max/memory-continuity",
+  "tags": ["memory", "continuity", "state", "recovery", "session"],
+  "compatibility": {
+    "agents": ["openclaw"],
+    "minVersion": "2026.1.0"
+  }
+}
