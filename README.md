@@ -255,6 +255,12 @@ memory-continuity/
 4. **Portable and backupable** — `cp` is your backup tool
 5. **Complements native OpenClaw memory** — does not replace it
 
+## Support
+
+If you find this plugin useful, please consider giving it a ⭐ on GitHub — it helps others discover the project!
+
+[![GitHub stars](https://img.shields.io/github/stars/dtzp555-max/memory-continuity?style=social)](https://github.com/dtzp555-max/memory-continuity)
+
 ## License
 
 MIT
