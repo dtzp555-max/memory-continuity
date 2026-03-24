@@ -1,0 +1,14 @@
+{
+  "name": "mc-plugin",
+  "version": "1.0.0",
+  "description": "Slash commands for Memory Continuity — /mc state, /mc history, /mc search, etc.",
+  "main": "index.js",
+  "type": "module",
+  "keywords": ["openclaw", "plugin", "memory", "continuity"],
+  "license": "MIT",
+  "openclaw": {
+    "type": "plugin",
+    "id": "mc",
+    "pluginManifest": "openclaw.plugin.json"
+  }
+}

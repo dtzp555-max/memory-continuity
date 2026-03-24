@@ -1,0 +1,17 @@
+{
+  "id": "mc",
+  "name": "Memory Continuity Commands",
+  "description": "Slash commands for Memory Continuity — /mc state, /mc history, /mc search, /mc settings, etc.",
+  "version": "1.0.0",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "memoryDir": {
+        "type": "string",
+        "default": "",
+        "description": "Override memory directory path (auto-detected from workspace if empty)"
+      }
+    }
+  }
+}

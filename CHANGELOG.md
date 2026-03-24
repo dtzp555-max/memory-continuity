@@ -1,5 +1,42 @@
 # Changelog
 
+## v3.0.0 — 2026-03-24
+
+### Summary
+Major release: **interactive `/mc` commands** for Telegram, Discord, and CLI. You can now inspect, search, restore, and manage agent memory directly from chat.
+
+### Added
+- **`/mc` slash command plugin** — 10 subcommands registered as a native OpenClaw gateway command
+  - `/mc state [agent]` — view current working state
+  - `/mc state --all` — overview of all agents' memory
+  - `/mc history [agent]` — list archived sessions
+  - `/mc restore <N> [agent]` — restore from archive
+  - `/mc clear [agent]` — clear state (auto-archives first)
+  - `/mc search <keyword>` — full-text search across all memory and archives
+  - `/mc settings` — view/update plugin configuration
+  - `/mc compact [agent]` — compress oversized state files
+  - `/mc export [agent|all]` — export memory to markdown file
+  - `/mc --help` — command reference
+- **Multi-agent support** — all commands work across main + sub-agent workspaces
+- **Monospace formatting** — output wrapped in code blocks for aligned display in Telegram/Discord
+- **Auto-archive on clear** — clearing state automatically archives first, preventing data loss
+- **Restore with backup** — restoring an archive backs up current state to `.bak`
+
+### Changed
+- Bumped version to 3.0.0
+- Plugin now ships as two components: `memory-continuity` (lifecycle hooks) + `mc` (slash commands)
+
+---
+
+## v2.7.0 — 2026-03-22
+
+### Changed
+- Memory directory cleanup: auto-remove legacy `STATE_ARCHIVE_*.md` files
+- Max memory files limit (500) with auto-cleanup of oldest files
+- Archive count limit configurable via `maxArchiveCount`
+
+---
+
 ## v2.3.0 — 2026-03-16
 
 ### Summary

@@ -1,6 +1,6 @@
 # memory-continuity
 
-**Current release:** `v2.7.0`
+**Current release:** `v3.0.0`
 
 OpenClaw **lifecycle plugin** for short-term working continuity. Preserves structured in-flight work state across `/new`, reset, gateway restarts, model fallback, and context compaction.
 
@@ -91,6 +91,62 @@ openclaw gateway restart 2>&1 | grep memory-continuity
 2. Send `/new` to reset the session
 3. Ask "what was the secret?" or "我们刚才聊到哪了"
 4. The agent should immediately surface the recovered state
+
+## Interactive Commands (`/mc`)
+
+v3.0.0 adds a companion plugin that registers `/mc` as a native slash command. Works in Telegram, Discord, and anywhere OpenClaw commands are supported.
+
+```
+/mc state              View main agent's working state
+/mc state --all        Overview of all agents
+/mc state tech_geek    View a specific agent's state
+/mc history            List archived sessions
+/mc restore 3          Restore archive #3
+/mc search auth        Search "auth" across all memory
+/mc settings           View plugin settings
+/mc settings maxArchiveCount 30   Update a setting
+/mc compact            Compress oversized state file
+/mc export all         Export all agents' memory to file
+/mc --help             Command reference
+```
+
+The `/mc` plugin reads memory files directly — no HTTP endpoints, no model invocation. Responses are instant.
+
+### Install the command plugin
+
+The `/mc` command plugin is separate from the lifecycle plugin. To install:
+
+```bash
+# Clone (if you haven't already)
+cd ~/.openclaw/projects
+git clone https://github.com/dtzp555-max/memory-continuity.git
+
+# The mc-plugin is bundled in the mc-plugin/ directory
+cp -r memory-continuity/mc-plugin ~/.openclaw/projects/mc-plugin
+mkdir -p ~/.openclaw/extensions/mc
+cp ~/.openclaw/projects/mc-plugin/* ~/.openclaw/extensions/mc/
+```
+
+Then add to `openclaw.json`:
+```json
+{
+  "plugins": {
+    "allow": ["memory-continuity", "mc"],
+    "entries": {
+      "mc": { "enabled": true }
+    },
+    "installs": {
+      "mc": {
+        "source": "path",
+        "sourcePath": "~/.openclaw/projects/mc-plugin",
+        "installPath": "~/.openclaw/extensions/mc"
+      }
+    }
+  }
+}
+```
+
+Restart the gateway and `/mc --help` should work.
 
 ## Configuration
 
