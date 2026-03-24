@@ -148,21 +148,6 @@ Then add to `openclaw.json`:
 
 Restart the gateway and `/mc --help` should work.
 
-### Upgrading from v2.x (skill-based /ocp)
-
-If you previously used the skill-based `/ocp` command (via `skills/ocp/SKILL.md`), you need to remove it to avoid conflicts with the new plugin-based command handler:
-
-```bash
-# Remove the old skill (it conflicts with the plugin command)
-rm -rf ~/.openclaw/workspace/main/skills/ocp
-
-# Restart gateway
-launchctl kickstart -k gui/501/ai.openclaw.gateway  # macOS
-# or: systemctl --user restart openclaw-gateway       # Linux
-```
-
-**Why?** The old skill-based approach routed `/ocp` to the agent as a prompt, which required model invocation and was slow. The new plugin-based approach handles commands directly in the gateway — instant response, no model cost. If both exist, the skill takes priority and the plugin is never reached, causing "Unknown skill" errors.
-
 ## Configuration
 
 The plugin works with zero configuration. Optional settings in `openclaw.json`:
