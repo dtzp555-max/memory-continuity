@@ -340,8 +340,9 @@ const plugin = {
       }
 
       // Count real user messages (exclude system, metadata-only, short commands)
-      const realUserMsgs = messages.filter(m => {
-        if (m?.role !== "user") return false;
+      // Returns cleaned text strings so ignore-pattern regex can test against actual content.
+      const realUserMsgs = messages.reduce((acc, m) => {
+        if (m?.role !== "user") return acc;
         const text = typeof m?.content === "string" ? m.content
           : Array.isArray(m?.content) ? m.content.filter(b => b?.type === "text").map(b => b.text).join("\n")
           : "";
@@ -350,12 +351,13 @@ const plugin = {
           .replace(/^Sender \(untrusted metadata\):[\s\S]*?\n\n/m, "")
           .trim();
         // Skip very short messages like "/new", "/status", single-word queries
-        return cleaned.length > 10;
-      });
+        if (cleaned.length > 10) acc.push(cleaned);
+        return acc;
+      }, []);
 
       // Check ignore patterns — skip sessions matching cron/subagent noise
       const ignorePatterns = (config.ignorePatterns || [])
-        .map(p => { try { return new RegExp(p, "i"); } catch { return null; } })
+        .map(p => { try { return new RegExp(p, "i"); } catch { log.warn?.("[memory-continuity] ignorePatterns: invalid regex, skipping: " + p); return null; } })
         .filter(Boolean);
 
       if (ignorePatterns.length > 0 && realUserMsgs.length > 0) {
