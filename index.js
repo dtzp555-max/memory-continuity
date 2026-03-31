@@ -233,6 +233,74 @@ function writeSessionLog(workspaceDir, messages, config = {}) {
   fs.appendFileSync(logFile, prefix + entry, "utf8");
 }
 
+/**
+ * Extract the last N meaningful user/assistant exchange pairs from messages.
+ * Returns a formatted string for injection into compaction context.
+ */
+function extractTailMessages(messages, count = 3) {
+  if (!messages || messages.length === 0) return null;
+
+  // Walk backwards, collect up to `count` user+assistant pairs
+  const pairs = [];
+  let i = messages.length - 1;
+
+  while (i >= 0 && pairs.length < count) {
+    // Find assistant message
+    while (i >= 0 && messages[i]?.role !== "assistant") i--;
+    if (i < 0) break;
+    const assistantMsg = messages[i];
+    i--;
+
+    // Find preceding user message
+    while (i >= 0 && messages[i]?.role !== "user") i--;
+    if (i < 0) break;
+    const userMsg = messages[i];
+    i--;
+
+    const getText = (msg) => {
+      if (typeof msg?.content === "string") return msg.content;
+      if (Array.isArray(msg?.content)) {
+        return msg.content.filter(b => b?.type === "text").map(b => b.text).join("\n");
+      }
+      return "";
+    };
+
+    const userText = getText(userMsg).trim();
+    const assistantText = getText(assistantMsg).trim();
+
+    // Skip trivial exchanges
+    if (userText.length < 10 && assistantText.length < 20) continue;
+
+    // Token-aware truncation per message
+    const maxPerMsg = 150;
+    const truncMsg = (s) => {
+      if (estimateTokens(s) <= maxPerMsg) return s;
+      let lo = 0, hi = s.length;
+      while (lo < hi) {
+        const mid = (lo + hi + 1) >> 1;
+        if (estimateTokens(s.slice(0, mid)) <= maxPerMsg) lo = mid;
+        else hi = mid - 1;
+      }
+      // Avoid splitting surrogate pairs
+      while (lo > 0 && lo < s.length && s.charCodeAt(lo) >= 0xDC00 && s.charCodeAt(lo) <= 0xDFFF) lo--;
+      return s.slice(0, lo) + "...";
+    };
+
+    pairs.unshift({ user: truncMsg(userText), assistant: truncMsg(assistantText) });
+  }
+
+  if (pairs.length === 0) return null;
+
+  const lines = ["=== RECENT EXCHANGE (protected) ==="];
+  for (const p of pairs) {
+    lines.push(`User: ${p.user}`);
+    lines.push(`Assistant: ${p.assistant}`);
+    lines.push("---");
+  }
+  lines.push("=== END RECENT EXCHANGE ===");
+  return lines.join("\n");
+}
+
 function extractStateFromMessages(messages) {
   if (!messages || messages.length === 0) return null;
 
@@ -349,6 +417,7 @@ const plugin = {
     // ------------------------------------------------------------------
     api.on("before_compaction", async (_event, _ctx) => {
       const ws = _ctx?.workspaceDir;
+      const config = getConfig();
       const statePath = resolveStatePath(ws);
       if (!statePath) return;
 
@@ -360,8 +429,19 @@ const plugin = {
 
       log.info?.("[memory-continuity] Injecting state before compaction");
 
+      // Smart tail protection: also inject recent critical messages
+      const tailCount = config.tailProtectCount ?? 3;
+      const messages = _event?.messages;
+      const tail = tailCount > 0 ? extractTailMessages(messages, tailCount) : null;
+
+      const parts = [snapshot];
+      if (tail) {
+        parts.push(tail);
+        log.info?.("[memory-continuity] Tail protection: injected recent exchanges");
+      }
+
       return {
-        prependSystemContext: snapshot,
+        prependSystemContext: parts.join("\n\n"),
       };
     }, { priority: 10 });
 

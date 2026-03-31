@@ -37,6 +37,11 @@
         "type": "boolean",
         "default": true,
         "description": "Write session summaries to memory/sessions/ daily logs"
+      },
+      "tailProtectCount": {
+        "type": "number",
+        "default": 3,
+        "description": "Number of recent critical message pairs to protect during compaction"
       }
     }
   },
@@ -64,6 +69,10 @@
     "sessionLogging": {
       "label": "Session logging",
       "help": "Append session summaries to daily markdown logs"
+    },
+    "tailProtectCount": {
+      "label": "Tail protect count",
+      "help": "Keep N recent user/assistant pairs visible after compaction"
     }
   }
 }
