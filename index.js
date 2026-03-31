@@ -475,7 +475,7 @@ function updateTagIndex(workspaceDir, topic, dateStr) {
   if (!topic) return;
 
   // Extract #tags (word chars + hyphens after #)
-  const tags = topic.match(/#[\w-]+/g);
+  const tags = topic.match(/#[\p{L}\p{N}_-]+/gu);
   if (!tags || tags.length === 0) return;
 
   const tagsFile = path.join(workspaceDir, "memory", "tags.md");
@@ -895,6 +895,65 @@ const plugin = {
         log.info?.("[memory-continuity] Created initial CURRENT_STATE.md");
       }
     }, { priority: 90 });
+
+    // ------------------------------------------------------------------
+    // SERVICE: mc:recall — programmatic interface for other plugins
+    // ------------------------------------------------------------------
+    if (typeof api.exposeService === "function") {
+      api.exposeService("mc:recall", {
+        description: "Search memory history by topic keywords. Returns scored results.",
+
+        /**
+         * @param {Object} params
+         * @param {string} params.topic - Keywords to search for
+         * @param {number} [params.maxItems=5] - Maximum results to return
+         * @param {string} [params.format="structured"] - "structured" returns array of objects, "text" returns formatted string
+         * @returns {{ results: Array<{ date: string, type: string, score: number, summary: string }>, total: number }}
+         */
+        async handler(params, ctx) {
+          const topic = params?.topic;
+          if (!topic || typeof topic !== "string") {
+            return { error: "topic (string) is required", results: [], total: 0 };
+          }
+
+          const ws = ctx?.workspaceDir;
+          if (!ws) {
+            return { error: "no workspace context", results: [], total: 0 };
+          }
+
+          const maxItems = Math.min(params?.maxItems ?? 5, 20);
+
+          // Reuse the internal findRelevantHistory function
+          const textResult = findRelevantHistory(ws, topic, maxItems);
+
+          if (!textResult) {
+            return { results: [], total: 0 };
+          }
+
+          // For "text" format, return the raw string
+          if (params?.format === "text") {
+            return { text: textResult, total: 1 };
+          }
+
+          // For "structured" format, parse the result into objects
+          const lines = textResult.split("\n").filter(l => l.startsWith("["));
+          const results = lines.map(line => {
+            const dateMatch = line.match(/^\[([^\]]+)\]/);
+            const summary = line.replace(/^\[[^\]]+\]\s*/, "").trim();
+            return {
+              date: dateMatch?.[1] || "unknown",
+              type: "history",
+              score: 0,
+              summary,
+            };
+          });
+
+          return { results, total: results.length };
+        },
+      });
+
+      log.info?.("[memory-continuity] Exposed mc:recall service for inter-plugin use");
+    }
 
     log.info?.("[memory-continuity] Plugin registered successfully");
   },

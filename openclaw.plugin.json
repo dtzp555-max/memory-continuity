@@ -2,8 +2,26 @@
   "id": "memory-continuity",
   "name": "Memory Continuity",
   "description": "Preserves working state across /new, reset, compaction, and gateway restarts via a simple markdown checkpoint file.",
-  "version": "3.3.0",
+  "version": "4.0.0",
+  "author": { "name": "dtzp555-max", "url": "https://github.com/dtzp555-max" },
+  "license": "MIT",
+  "repository": "https://github.com/dtzp555-max/memory-continuity",
+  "category": "memory",
+  "tags": ["memory", "continuity", "state", "recovery", "markdown", "zero-dependency"],
+  "icon": "brain",
+  "minOpenClawVersion": "2026.3.0",
   "source": "https://github.com/dtzp555-max/memory-continuity",
+  "interop": {
+    "complements": [
+      {
+        "id": "lossless-claw",
+        "reason": "MC uses lifecycle hooks for working-state recovery; lossless-claw uses the contextEngine slot for lossless context compression. They occupy different plugin slots and serve different purposes — install both for best results."
+      }
+    ],
+    "conflicts": [],
+    "slot": "hooks-only",
+    "slotNote": "Does NOT occupy the contextEngine slot. Safe to run alongside any context engine."
+  },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,

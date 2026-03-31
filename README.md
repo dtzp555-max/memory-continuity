@@ -1,6 +1,6 @@
 # memory-continuity
 
-**Current release:** `v3.0.0`
+**Current release:** `v4.0.0`
 
 OpenClaw **lifecycle plugin** for short-term working continuity. Preserves structured in-flight work state across `/new`, reset, gateway restarts, model fallback, and context compaction.
 
@@ -45,6 +45,37 @@ The plugin uses OpenClaw lifecycle hooks to **automatically** save and restore w
 Because state injection happens at the hook level (before the model sees anything), it works with **any model** — GPT-4o, MiniMax, Claude, etc.
 
 ## Quick Start
+
+### Marketplace Install (recommended)
+
+```bash
+openclaw plugins install https://github.com/dtzp555-max/memory-continuity
+```
+
+### Works with lossless-claw
+
+This plugin does **not** use the `contextEngine` slot. It runs via lifecycle hooks only, so it coexists perfectly with lossless-claw or any other context engine:
+
+- **lossless-claw** = lossless context compression (contextEngine slot)
+- **memory-continuity** = working-state recovery (hooks only)
+
+Install both for the best experience.
+
+### Programmatic API
+
+Other plugins can call MC's recall function programmatically:
+
+```javascript
+// In another plugin's register() function:
+const recall = api.getService("mc:recall");
+if (recall) {
+  const result = await recall.handler(
+    { topic: "deployment issues", maxItems: 3 },
+    ctx
+  );
+  // result.results = [{ date, type, score, summary }, ...]
+}
+```
 
 ### Install
 
