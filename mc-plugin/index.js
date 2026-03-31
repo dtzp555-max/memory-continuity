@@ -526,12 +526,96 @@ function cmdSessions(args) {
   return out.trimEnd();
 }
 
+function cmdTags(args) {
+  const agent = args || "main";
+  const memDir = resolveMemDir(agent);
+  if (!memDir) return `Agent "${agent}" not found.`;
+
+  const tagsFile = path.join(memDir, "tags.md");
+  const content = readFile(tagsFile);
+  if (!content) return `No tags for "${agent}".`;
+
+  // Parse tags and their date counts
+  const tagSections = content.split(/^## /gm).filter(s => s.trim());
+  if (tagSections.length === 0) return `No tags for "${agent}".`;
+
+  let out = `Tags: ${agent} (${tagSections.length} tags)\n`;
+  out += "─────────────────────────────\n";
+
+  const tags = [];
+  for (const section of tagSections) {
+    const lines = section.trim().split("\n");
+    const tag = lines[0].trim();
+    if (!tag.startsWith("#")) continue;
+    const dates = lines.filter(l => l.startsWith("- "));
+    tags.push({ tag, count: dates.length, latest: dates[0]?.replace("- ", "") || "?" });
+  }
+
+  // Sort by count descending
+  tags.sort((a, b) => b.count - a.count);
+
+  for (const { tag, count, latest } of tags.slice(0, 30)) {
+    out += `${tag.padEnd(25)} ${String(count).padStart(3)} days   latest: ${latest}\n`;
+  }
+
+  if (tags.length > 30) out += `\n  ... and ${tags.length - 30} more tags`;
+  return out.trimEnd();
+}
+
+function cmdSummary(args) {
+  const parts = (args || "").trim().split(/\s+/);
+  const agent = parts.find(p => !p.startsWith("-") && !/^\d{4}/.test(p) && p !== "daily" && p !== "weekly") || "main";
+  const typeArg = parts.find(p => p === "daily" || p === "weekly");
+  const dateArg = parts.find(p => /^\d{4}/.test(p));
+
+  const memDir = resolveMemDir(agent);
+  if (!memDir) return `Agent "${agent}" not found.`;
+
+  // If specific date given, show that summary
+  if (dateArg) {
+    const type = typeArg || (dateArg.includes("W") ? "weekly" : "daily");
+    const sumFile = path.join(memDir, "summaries", type, `${dateArg}.md`);
+    const content = readFile(sumFile);
+    if (!content) return `No ${type} summary for ${dateArg}.`;
+    return content;
+  }
+
+  // List available summaries
+  const types = typeArg ? [typeArg] : ["daily", "weekly"];
+  let out = `Summaries: ${agent}\n`;
+  out += "─────────────────────────────\n";
+
+  for (const type of types) {
+    const sumDir = path.join(memDir, "summaries", type);
+    let files;
+    try { files = fs.readdirSync(sumDir).filter(f => f.endsWith(".md")).sort().reverse(); }
+    catch { continue; }
+
+    if (files.length === 0) continue;
+
+    out += `\n[${type.charAt(0).toUpperCase() + type.slice(1)}] (${files.length})\n`;
+    for (const f of files.slice(0, 10)) {
+      const name = f.replace(".md", "");
+      const content = readFile(path.join(sumDir, f));
+      const sessMatch = content?.match(/\*\*(?:Total s|S)essions:\*\*\s*(\d+)/);
+      const sessions = sessMatch ? sessMatch[1] : "?";
+      out += `  ${name}   ${sessions} session(s)\n`;
+    }
+    if (files.length > 10) out += `  ... +${files.length - 10} more\n`;
+  }
+
+  out += `\nUse /mc summary <YYYY-MM-DD> or /mc summary <YYYY-Www> to view details.`;
+  return out.trimEnd();
+}
+
 function cmdHelp() {
   return `MC Commands (Memory Continuity)
 ─────────────────────────────
 /mc state [agent]       View current state (default: main)
 /mc state --all         Overview of all agents
 /mc sessions [date]     Session logs (daily activity)
+/mc summary [daily|weekly] List or view summaries
+/mc tags [agent]          View tag index
 /mc history [agent]     List archived sessions
 /mc restore <N> [agent] Restore archive #N
 /mc clear [agent]       Clear state (archives first)
@@ -571,6 +655,8 @@ export default function (api) {
           case "settings":  text = cmdSettings(subargs || null); break;
           case "compact":   text = cmdCompact(subargs || null); break;
           case "export":    text = cmdExport(subargs || null); break;
+          case "tags":     text = cmdTags(subargs || null); break;
+          case "summary":  text = cmdSummary(subargs || null); break;
           case "help": case "--help": case "-h": case "":
             text = cmdHelp(); break;
           default:
