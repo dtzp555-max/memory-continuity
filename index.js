@@ -231,6 +231,9 @@ function writeSessionLog(workspaceDir, messages, config = {}) {
   const isNew = !fs.existsSync(logFile);
   const prefix = isNew ? `# Session Log — ${dateStr}\n\n` : "";
   fs.appendFileSync(logFile, prefix + entry, "utf8");
+
+  // Extract and index #tags from the topic
+  updateTagIndex(workspaceDir, topic, dateStr);
 }
 
 /**
@@ -462,6 +465,42 @@ function generateWeeklySummary(workspaceDir, config = {}) {
 
   fs.mkdirSync(weeklyDir, { recursive: true });
   fs.writeFileSync(weeklyFile, summary, "utf8");
+}
+
+/**
+ * Extract #tags from a session topic and update the tag index.
+ * Tags file: memory/tags.md — simple markdown index mapping tags to dates.
+ */
+function updateTagIndex(workspaceDir, topic, dateStr) {
+  if (!topic) return;
+
+  // Extract #tags (word chars + hyphens after #)
+  const tags = topic.match(/#[\w-]+/g);
+  if (!tags || tags.length === 0) return;
+
+  const tagsFile = path.join(workspaceDir, "memory", "tags.md");
+  let existing = readFile(tagsFile) || "# Tag Index\n\n";
+
+  for (const tag of tags) {
+    const normalizedTag = tag.toLowerCase();
+    // Check if this tag+date combo already exists
+    if (existing.includes(`${normalizedTag}`) && existing.includes(dateStr)) continue;
+
+    // Find or create tag section
+    const tagHeader = `## ${normalizedTag}`;
+    if (existing.includes(tagHeader)) {
+      // Append date to existing tag section
+      existing = existing.replace(
+        tagHeader,
+        `${tagHeader}\n- ${dateStr}`
+      );
+    } else {
+      // Add new tag section
+      existing += `${tagHeader}\n- ${dateStr}\n\n`;
+    }
+  }
+
+  writeFile(tagsFile, existing);
 }
 
 function extractStateFromMessages(messages) {
