@@ -2,7 +2,7 @@
   "id": "memory-continuity",
   "name": "Memory Continuity",
   "description": "Preserves working state across /new, reset, compaction, and gateway restarts via a simple markdown checkpoint file.",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "source": "https://github.com/dtzp555-max/memory-continuity",
   "configSchema": {
     "type": "object",
@@ -32,6 +32,11 @@
         "type": "array",
         "default": [],
         "description": "Regex patterns to ignore sessions (e.g. cron jobs, subagent noise). Matched against first user message."
+      },
+      "sessionLogging": {
+        "type": "boolean",
+        "default": true,
+        "description": "Write session summaries to memory/sessions/ daily logs"
       }
     }
   },
@@ -55,6 +60,10 @@
     "ignorePatterns": {
       "label": "Ignore patterns",
       "help": "Skip state extraction for sessions matching these patterns (regex)"
+    },
+    "sessionLogging": {
+      "label": "Session logging",
+      "help": "Append session summaries to daily markdown logs"
     }
   }
 }

@@ -170,6 +170,68 @@ function cleanupMemoryDir(workspaceDir) {
   } catch {}
 }
 
+/**
+ * Append a session summary to the daily session log.
+ * File: memory/sessions/YYYY-MM-DD.md (one per day, append-only)
+ */
+function writeSessionLog(workspaceDir, messages, config = {}) {
+  if (config.sessionLogging === false) return;
+  if (!messages || messages.length === 0) return;
+
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+  const sessionsDir = path.join(workspaceDir, "memory", "sessions");
+  fs.mkdirSync(sessionsDir, { recursive: true });
+
+  const logFile = path.join(sessionsDir, `${dateStr}.md`);
+
+  // Extract first meaningful user message as topic
+  let topic = "(no topic)";
+  for (const msg of messages) {
+    if (msg?.role !== "user") continue;
+    const text = typeof msg.content === "string"
+      ? msg.content
+      : Array.isArray(msg.content)
+        ? msg.content.filter(b => b?.type === "text").map(b => b.text).join("\n")
+        : "";
+    const cleaned = text
+      .replace(/^Conversation info \(untrusted metadata\):[\s\S]*?\n\n/m, "")
+      .replace(/^Sender \(untrusted metadata\):[\s\S]*?\n\n/m, "")
+      .trim();
+    if (cleaned.length > 10) {
+      topic = cleaned.split("\n")[0].slice(0, 120);
+      break;
+    }
+  }
+
+  // Count messages by role
+  const userCount = messages.filter(m => m?.role === "user").length;
+  const assistantCount = messages.filter(m => m?.role === "assistant").length;
+  const totalTokens = estimateTokens(
+    messages.map(m => typeof m?.content === "string" ? m.content : "").join("")
+  );
+
+  // Build log entry
+  const entry = [
+    `### ${timeStr}`,
+    `- **Topic:** ${topic}`,
+    `- **Messages:** ${userCount} user / ${assistantCount} assistant`,
+    `- **Est. tokens:** ~${totalTokens}`,
+    "",
+  ].join("\n");
+
+  // Append to daily log (create with header if new)
+  if (!fs.existsSync(logFile)) {
+    const header = `# Session Log — ${dateStr}\n\n`;
+    fs.writeFileSync(logFile, header + entry, "utf8");
+  } else {
+    fs.appendFileSync(logFile, entry, "utf8");
+  }
+}
+
 function extractStateFromMessages(messages) {
   if (!messages || messages.length === 0) return null;
 
@@ -367,6 +429,9 @@ const plugin = {
           return;
         }
       }
+
+      // Write session log entry
+      writeSessionLog(ws, messages, config);
 
       const existing = readFile(statePath);
       const newState = extractStateFromMessages(messages);
