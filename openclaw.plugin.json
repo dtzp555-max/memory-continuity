@@ -47,6 +47,16 @@
         "type": "boolean",
         "default": true,
         "description": "Generate daily and weekly summaries from session logs"
+      },
+      "relevanceInjection": {
+        "type": "boolean",
+        "default": true,
+        "description": "Inject relevant historical context at session start"
+      },
+      "maxRelevanceItems": {
+        "type": "number",
+        "default": 3,
+        "description": "Maximum number of relevant history items to inject"
       }
     }
   },
@@ -82,6 +92,14 @@
     "summaryEnabled": {
       "label": "Summary generation",
       "help": "Auto-generate daily/weekly summaries from session logs"
+    },
+    "relevanceInjection": {
+      "label": "Relevance injection",
+      "help": "Inject related history when starting a new session"
+    },
+    "maxRelevanceItems": {
+      "label": "Max relevance items",
+      "help": "How many related history entries to inject (2-5)"
     }
   }
 }

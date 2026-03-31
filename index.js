@@ -503,6 +503,92 @@ function updateTagIndex(workspaceDir, topic, dateStr) {
   writeFile(tagsFile, existing);
 }
 
+/**
+ * Find relevant historical entries by keyword matching against the current objective.
+ * Searches session logs and daily summaries, returns up to `maxItems` formatted entries.
+ */
+function findRelevantHistory(workspaceDir, objective, maxItems = 3) {
+  if (!objective || objective.length < 10) return null;
+
+  // Extract keywords from objective (words > 3 chars, excluding common words)
+  const stopWords = new Set(["this", "that", "with", "from", "have", "been", "will", "what", "when", "where", "which", "there", "their", "about", "would", "should", "could", "into", "some", "them", "than", "then", "these", "those", "just", "also", "more", "other", "after", "before", "none"]);
+  const words = objective
+    .replace(/[^\w\u4e00-\u9fff\u3400-\u4dbf-]/g, " ")
+    .split(/\s+/)
+    .filter(w => w.length > 3 && !stopWords.has(w.toLowerCase()))
+    .map(w => w.toLowerCase());
+
+  if (words.length === 0) return null;
+
+  // Build a scoring regex from keywords
+  const keywordPatterns = words.slice(0, 10).map(w => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+
+  const scored = [];
+
+  // Search daily summaries (most recent 14)
+  const dailyDir = path.join(workspaceDir, "memory", "summaries", "daily");
+  try {
+    const files = fs.readdirSync(dailyDir).filter(f => f.endsWith(".md")).sort().reverse();
+    for (const f of files.slice(0, 14)) {
+      const content = readFile(path.join(dailyDir, f));
+      if (!content) continue;
+      let score = 0;
+      const lower = content.toLowerCase();
+      for (const kw of keywordPatterns) {
+        const matches = lower.match(new RegExp(kw, "gi"));
+        if (matches) score += matches.length;
+      }
+      if (score > 0) {
+        const date = f.replace(".md", "");
+        // Extract topics section for context
+        const topicsMatch = content.match(/## Topics\n([\s\S]*?)(?:\n##|$)/);
+        const topics = topicsMatch ? topicsMatch[1].trim().split("\n").slice(0, 3).join("; ") : "";
+        scored.push({ date, type: "daily", score, summary: topics || content.split("\n").slice(0, 3).join(" ") });
+      }
+    }
+  } catch {}
+
+  // Search session logs (most recent 7 days)
+  const sessionsDir = path.join(workspaceDir, "memory", "sessions");
+  try {
+    const files = fs.readdirSync(sessionsDir).filter(f => f.endsWith(".md")).sort().reverse();
+    for (const f of files.slice(0, 7)) {
+      const content = readFile(path.join(sessionsDir, f));
+      if (!content) continue;
+
+      // Score individual session entries
+      const entries = content.split(/^### /gm).filter(e => e.trim());
+      for (const entry of entries) {
+        let score = 0;
+        const lower = entry.toLowerCase();
+        for (const kw of keywordPatterns) {
+          const matches = lower.match(new RegExp(kw, "gi"));
+          if (matches) score += matches.length;
+        }
+        if (score > 1) { // Require at least 2 keyword hits for session entries
+          const topicMatch = entry.match(/\*\*Topic:\*\*\s*(.+)/);
+          const time = entry.match(/^(\d{2}:\d{2})/)?.[1] || "";
+          const date = f.replace(".md", "");
+          scored.push({ date: `${date} ${time}`, type: "session", score, summary: topicMatch?.[1] || entry.slice(0, 80) });
+        }
+      }
+    }
+  } catch {}
+
+  if (scored.length === 0) return null;
+
+  // Sort by score descending, take top N
+  scored.sort((a, b) => b.score - a.score);
+  const top = scored.slice(0, maxItems);
+
+  const lines = ["=== RELATED HISTORY ==="];
+  for (const item of top) {
+    lines.push(`[${item.date}] ${item.summary}`);
+  }
+  lines.push("=== END RELATED HISTORY ===");
+  return lines.join("\n");
+}
+
 function extractStateFromMessages(messages) {
   if (!messages || messages.length === 0) return null;
 
@@ -594,6 +680,7 @@ const plugin = {
     // ------------------------------------------------------------------
     api.on("before_agent_start", async (_event, _ctx) => {
       const ws = _ctx?.workspaceDir;
+      const config = getConfig();
       const statePath = resolveStatePath(ws);
       if (!statePath) return;
 
@@ -605,9 +692,22 @@ const plugin = {
 
       log.info?.("[memory-continuity] Injecting recovered state into context");
 
+      const parts = [snapshot];
+
+      // Relevance injection: find related historical entries
+      if (config.relevanceInjection !== false) {
+        const objective = extractSection(md, "Objective");
+        const maxItems = config.maxRelevanceItems ?? 3;
+        const history = findRelevantHistory(ws, objective, maxItems);
+        if (history) {
+          parts.push(history);
+          log.info?.("[memory-continuity] Injected relevant history context");
+        }
+      }
+
       return {
         prependSystemContext:
-          snapshot + "\n\n" +
+          parts.join("\n\n") + "\n\n" +
           "IMPORTANT: The above is recovered working state from a previous session. " +
           "If the user appears to be resuming work, surface this state immediately " +
           "before any generic greeting. This is a continuity requirement, not optional.",
