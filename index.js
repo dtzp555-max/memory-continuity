@@ -368,6 +368,102 @@ function generateDailySummary(workspaceDir, config = {}) {
   fs.writeFileSync(summaryFile, summary, "utf8");
 }
 
+/**
+ * Generate a weekly summary by rolling up daily summaries.
+ * Runs on Monday, summarizing the previous week (Mon-Sun).
+ * Output: memory/summaries/weekly/YYYY-Www.md (ISO week number)
+ */
+function generateWeeklySummary(workspaceDir, config = {}) {
+  if (config.summaryEnabled === false) return;
+
+  const now = new Date();
+  // Only run on Mondays
+  if (now.getDay() !== 1) return;
+
+  const pad = (n) => String(n).padStart(2, "0");
+
+  // Calculate previous week's Monday
+  const prevMonday = new Date(now);
+  prevMonday.setDate(prevMonday.getDate() - 7);
+
+  // ISO week number
+  const jan1 = new Date(prevMonday.getFullYear(), 0, 1);
+  const weekNum = Math.ceil(((prevMonday - jan1) / 86400000 + jan1.getDay() + 1) / 7);
+  const weekLabel = `${prevMonday.getFullYear()}-W${pad(weekNum)}`;
+
+  const weeklyDir = path.join(workspaceDir, "memory", "summaries", "weekly");
+  const weeklyFile = path.join(weeklyDir, `${weekLabel}.md`);
+
+  // Skip if already generated
+  if (fs.existsSync(weeklyFile)) return;
+
+  // Collect daily summaries for the 7 days of previous week
+  const dailyDir = path.join(workspaceDir, "memory", "summaries", "daily");
+  const dailies = [];
+  let weekSessions = 0;
+  let weekUser = 0;
+  let weekAssistant = 0;
+  let weekTokens = 0;
+  const allTopics = [];
+
+  for (let d = 0; d < 7; d++) {
+    const day = new Date(prevMonday);
+    day.setDate(day.getDate() + d);
+    const dayStr = `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`;
+    const dailyFile = path.join(dailyDir, `${dayStr}.md`);
+    const content = readFile(dailyFile);
+    if (!content) continue;
+
+    dailies.push(dayStr);
+
+    const sessMatch = content.match(/\*\*Sessions:\*\*\s*(\d+)/);
+    const msgMatch = content.match(/\*\*Messages:\*\*\s*(\d+)\s*user\s*\/\s*(\d+)\s*assistant/);
+    const tokenMatch = content.match(/\*\*Est\. tokens:\*\*\s*~(\d+)/);
+
+    if (sessMatch) weekSessions += parseInt(sessMatch[1]);
+    if (msgMatch) {
+      weekUser += parseInt(msgMatch[1]);
+      weekAssistant += parseInt(msgMatch[2]);
+    }
+    if (tokenMatch) weekTokens += parseInt(tokenMatch[1]);
+
+    // Extract topics
+    const topicSection = content.split("## Topics")[1];
+    if (topicSection) {
+      const topics = topicSection.match(/^\d+\.\s+(.+)$/gm);
+      if (topics) allTopics.push(...topics.map(t => t.replace(/^\d+\.\s+/, "").trim()));
+    }
+  }
+
+  if (dailies.length === 0) return;
+
+  // Deduplicate topics (keep first occurrence)
+  const seen = new Set();
+  const uniqueTopics = allTopics.filter(t => {
+    const key = t.toLowerCase().slice(0, 50);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  const summary = [
+    `# Weekly Summary — ${weekLabel}`,
+    `> ${dailies[0]} to ${dailies[dailies.length - 1]}`,
+    "",
+    `**Active days:** ${dailies.length}/7`,
+    `**Total sessions:** ${weekSessions}`,
+    `**Total messages:** ${weekUser} user / ${weekAssistant} assistant`,
+    `**Est. total tokens:** ~${weekTokens}`,
+    "",
+    "## Key Topics",
+    ...uniqueTopics.slice(0, 20).map((t, i) => `${i + 1}. ${t}`),
+    "",
+  ].join("\n");
+
+  fs.mkdirSync(weeklyDir, { recursive: true });
+  fs.writeFileSync(weeklyFile, summary, "utf8");
+}
+
 function extractStateFromMessages(messages) {
   if (!messages || messages.length === 0) return null;
 
@@ -583,6 +679,7 @@ const plugin = {
 
       // Generate daily summary for previous day if needed
       generateDailySummary(ws, config);
+      generateWeeklySummary(ws, config);
 
       const existing = readFile(statePath);
       const newState = extractStateFromMessages(messages);
