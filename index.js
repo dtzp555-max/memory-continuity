@@ -210,9 +210,13 @@ function writeSessionLog(workspaceDir, messages, config = {}) {
   // Count messages by role
   const userCount = messages.filter(m => m?.role === "user").length;
   const assistantCount = messages.filter(m => m?.role === "assistant").length;
-  const totalTokens = estimateTokens(
-    messages.map(m => typeof m?.content === "string" ? m.content : "").join("")
-  );
+  const contentToString = (m) => {
+    if (typeof m?.content === "string") return m.content;
+    if (Array.isArray(m?.content))
+      return m.content.filter(b => b?.type === "text").map(b => b.text).join(" ");
+    return "";
+  };
+  const totalTokens = estimateTokens(messages.map(contentToString).join(" "));
 
   // Build log entry
   const entry = [
@@ -223,13 +227,10 @@ function writeSessionLog(workspaceDir, messages, config = {}) {
     "",
   ].join("\n");
 
-  // Append to daily log (create with header if new)
-  if (!fs.existsSync(logFile)) {
-    const header = `# Session Log — ${dateStr}\n\n`;
-    fs.writeFileSync(logFile, header + entry, "utf8");
-  } else {
-    fs.appendFileSync(logFile, entry, "utf8");
-  }
+  // Append-safe: use appendFileSync for both new and existing files
+  const isNew = !fs.existsSync(logFile);
+  const prefix = isNew ? `# Session Log — ${dateStr}\n\n` : "";
+  fs.appendFileSync(logFile, prefix + entry, "utf8");
 }
 
 function extractStateFromMessages(messages) {
