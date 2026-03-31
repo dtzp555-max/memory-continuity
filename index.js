@@ -353,6 +353,19 @@ const plugin = {
         return cleaned.length > 10;
       });
 
+      // Check ignore patterns — skip sessions matching cron/subagent noise
+      const ignorePatterns = (config.ignorePatterns || [])
+        .map(p => { try { return new RegExp(p, "i"); } catch { return null; } })
+        .filter(Boolean);
+
+      if (ignorePatterns.length > 0 && realUserMsgs.length > 0) {
+        const firstMsg = realUserMsgs[0];
+        if (ignorePatterns.some(re => re.test(firstMsg))) {
+          log.info?.("[memory-continuity] Session matches ignorePattern, skipping");
+          return;
+        }
+      }
+
       const existing = readFile(statePath);
       const newState = extractStateFromMessages(messages);
       if (!newState) {

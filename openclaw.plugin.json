@@ -27,6 +27,11 @@
         "type": "number",
         "default": 20,
         "description": "Maximum number of archive files to keep in session_archive/"
+      },
+      "ignorePatterns": {
+        "type": "array",
+        "default": [],
+        "description": "Regex patterns to ignore sessions (e.g. cron jobs, subagent noise). Matched against first user message."
       }
     }
   },
@@ -46,6 +51,10 @@
     "maxArchiveCount": {
       "label": "Max archive files",
       "help": "Old archives are auto-deleted when this limit is reached"
+    },
+    "ignorePatterns": {
+      "label": "Ignore patterns",
+      "help": "Skip state extraction for sessions matching these patterns (regex)"
     }
   }
 }
