@@ -436,11 +436,57 @@ function cmdExport(args) {
   return `✓ Exported to:\n  ${exportFile}\n  ${agents.length} agent(s), ${sizeMB} KB`;
 }
 
+function cmdSessions(args) {
+  const parts = (args || "").trim().split(/\s+/);
+  const agent = parts.find(p => !p.startsWith("-") && !p.startsWith("2")) || "main";
+  const dateArg = parts.find(p => /^\d{4}-\d{2}-\d{2}$/.test(p));
+
+  const memDir = resolveMemDir(agent);
+  if (!memDir) return `Agent "${agent}" not found.`;
+
+  const sessionsDir = path.join(memDir, "sessions");
+  let files;
+  try { files = fs.readdirSync(sessionsDir).filter(f => f.endsWith(".md")).sort().reverse(); }
+  catch { return `No session logs for "${agent}".`; }
+
+  if (!files.length) return `No session logs for "${agent}".`;
+
+  // If date specified, show that day's log
+  if (dateArg) {
+    const target = `${dateArg}.md`;
+    const content = readFile(path.join(sessionsDir, target));
+    if (!content) return `No session log for ${dateArg}.`;
+    // Truncate to last 50 lines to stay compact
+    const lines = content.split("\n");
+    const shown = lines.length > 50 ? lines.slice(-50) : lines;
+    let out = shown.join("\n");
+    if (lines.length > 50) out = `... (${lines.length - 50} earlier lines omitted)\n\n` + out;
+    return out;
+  }
+
+  // List recent session logs
+  let out = `Session Logs: ${agent} (${files.length} days)\n`;
+  out += "─────────────────────────────\n";
+
+  for (const f of files.slice(0, 14)) {
+    const date = f.replace(".md", "");
+    const content = readFile(path.join(sessionsDir, f));
+    // Count session entries (### HH:MM headers)
+    const sessionCount = content ? (content.match(/^### \d{2}:\d{2}/gm) || []).length : 0;
+    out += `${date}   ${String(sessionCount).padStart(3)} session(s)\n`;
+  }
+
+  if (files.length > 14) out += `\n  ... and ${files.length - 14} more days`;
+  out += `\n\nUse /mc sessions <YYYY-MM-DD> to view a specific day.`;
+  return out.trimEnd();
+}
+
 function cmdHelp() {
   return `MC Commands (Memory Continuity)
 ─────────────────────────────
 /mc state [agent]       View current state (default: main)
 /mc state --all         Overview of all agents
+/mc sessions [date]     Session logs (daily activity)
 /mc history [agent]     List archived sessions
 /mc restore <N> [agent] Restore archive #N
 /mc clear [agent]       Clear state (archives first)
@@ -472,6 +518,7 @@ export default function (api) {
           case "state":
             text = subargs === "--all" ? cmdStateAll() : cmdState(subargs || null);
             break;
+          case "sessions":  text = cmdSessions(subargs || null); break;
           case "history":   text = cmdHistory(subargs || null); break;
           case "restore":   text = cmdRestore(subargs); break;
           case "clear":     text = cmdClear(subargs || null); break;
