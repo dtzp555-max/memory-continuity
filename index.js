@@ -14,6 +14,20 @@ const PLACEHOLDER_VALUES = new Set([
   "[exactly what should happen next]",
 ]);
 
+/**
+ * Estimate token count with CJK awareness.
+ * CJK characters ≈ 1.5 tokens each; Latin words ≈ 1 token per ~4 chars.
+ */
+function estimateTokens(text) {
+  if (!text) return 0;
+  // Count CJK characters (CJK Unified Ideographs + common CJK ranges)
+  const cjkCount = (text.match(/[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3000-\u303f\uff00-\uffef]/g) || []).length;
+  // Remove CJK chars, count remaining as ~1 token per 4 chars
+  const nonCjk = text.replace(/[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3000-\u303f\uff00-\uffef]/g, "");
+  const latinTokens = Math.ceil(nonCjk.length / 4);
+  return Math.ceil(cjkCount * 1.5) + latinTokens;
+}
+
 const STATE_TEMPLATE = `# Current State
 > Last updated: ${new Date().toISOString()}
 
@@ -171,8 +185,32 @@ function extractStateFromMessages(messages) {
   const lastUser = userMessages[userMessages.length - 1] || "";
   const lastAssistant = assistantMessages[assistantMessages.length - 1] || "";
 
-  // Truncate to keep it compact
-  const truncate = (s, max = 200) => s.length > max ? s.slice(0, max) + "..." : s;
+  // Token-aware truncation
+  const truncate = (s, maxTokens = 200) => {
+    if (estimateTokens(s) <= maxTokens) return s;
+    // Binary search for the right cut point
+    let lo = 0, hi = s.length;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (estimateTokens(s.slice(0, mid)) <= maxTokens) lo = mid;
+      else hi = mid - 1;
+    }
+    return s.slice(0, lo) + "...";
+  };
+
+  // Filter out error/garbage responses that would poison future sessions
+  const POISON_PATTERNS = [
+    /not logged in/i,
+    /please run \/login/i,
+    /unknown skill/i,
+    /session expired/i,
+    /auth.*failed/i,
+    /error.*timeout/i,
+  ];
+  const isPoisoned = (text) => POISON_PATTERNS.some(p => p.test(text));
+
+  if (isPoisoned(lastAssistant)) return null;
+  if (isPoisoned(lastUser) && !lastAssistant) return null;
 
   return `# Current State
 > Last updated: ${new Date().toISOString()}
