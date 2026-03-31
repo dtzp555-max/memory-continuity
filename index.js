@@ -14,18 +14,35 @@ const PLACEHOLDER_VALUES = new Set([
   "[exactly what should happen next]",
 ]);
 
+// Matches a single CJK character (no `g` flag — used per-char in estimateTokens)
+const CJK_RE = /[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3000-\u303f\uff00-\uffef]/;
+
+// Patterns that indicate error/garbage assistant responses — kept at module scope
+// so the array is not re-created on every extractStateFromMessages call.
+const POISON_PATTERNS = [
+  /not logged in/i,
+  /please run \/login/i,
+  /unknown skill/i,
+  /session expired/i,
+  /auth.*failed/i,
+  /error.*timeout/i,
+];
+const isPoisoned = (text) => POISON_PATTERNS.some(p => p.test(text));
+
 /**
  * Estimate token count with CJK awareness.
- * CJK characters ≈ 1.5 tokens each; Latin words ≈ 1 token per ~4 chars.
+ * CJK characters ≈ 1.5 tokens each; Latin/other chars ≈ 1 token per ~4 chars.
+ * Uses a single-pass for...of loop so surrogate pairs are iterated by code point.
  */
 function estimateTokens(text) {
   if (!text) return 0;
-  // Count CJK characters (CJK Unified Ideographs + common CJK ranges)
-  const cjkCount = (text.match(/[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3000-\u303f\uff00-\uffef]/g) || []).length;
-  // Remove CJK chars, count remaining as ~1 token per 4 chars
-  const nonCjk = text.replace(/[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff\u3000-\u303f\uff00-\uffef]/g, "");
-  const latinTokens = Math.ceil(nonCjk.length / 4);
-  return Math.ceil(cjkCount * 1.5) + latinTokens;
+  let cjkCount = 0;
+  let nonCjkLen = 0;
+  for (const ch of text) {
+    if (CJK_RE.test(ch)) cjkCount++;
+    else nonCjkLen++;
+  }
+  return Math.ceil(cjkCount * 1.5) + Math.ceil(nonCjkLen / 4);
 }
 
 const STATE_TEMPLATE = `# Current State
@@ -195,20 +212,12 @@ function extractStateFromMessages(messages) {
       if (estimateTokens(s.slice(0, mid)) <= maxTokens) lo = mid;
       else hi = mid - 1;
     }
+    // Avoid splitting surrogate pairs
+    while (lo > 0 && lo < s.length && s.charCodeAt(lo) >= 0xDC00 && s.charCodeAt(lo) <= 0xDFFF) lo--;
     return s.slice(0, lo) + "...";
   };
 
   // Filter out error/garbage responses that would poison future sessions
-  const POISON_PATTERNS = [
-    /not logged in/i,
-    /please run \/login/i,
-    /unknown skill/i,
-    /session expired/i,
-    /auth.*failed/i,
-    /error.*timeout/i,
-  ];
-  const isPoisoned = (text) => POISON_PATTERNS.some(p => p.test(text));
-
   if (isPoisoned(lastAssistant)) return null;
   if (isPoisoned(lastUser) && !lastAssistant) return null;
 
