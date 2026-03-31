@@ -2,7 +2,7 @@
   "id": "memory-continuity",
   "name": "Memory Continuity",
   "description": "Preserves working state across /new, reset, compaction, and gateway restarts via a simple markdown checkpoint file.",
-  "version": "4.0.0",
+  "version": "5.0.0",
   "author": { "name": "dtzp555-max", "url": "https://github.com/dtzp555-max" },
   "license": "MIT",
   "repository": "https://github.com/dtzp555-max/memory-continuity",
@@ -80,6 +80,16 @@
         "type": "number",
         "default": 30,
         "description": "Days before archives move to cold storage (0 = disabled)"
+      },
+      "subagentSeed": {
+        "type": "boolean",
+        "default": true,
+        "description": "Inject parent working state into subagent context at startup"
+      },
+      "subagentRecovery": {
+        "type": "boolean",
+        "default": true,
+        "description": "Recover unsurfaced results from completed subagents back to parent"
       }
     }
   },
@@ -127,6 +137,14 @@
     "archiveDecayDays": {
       "label": "Archive decay days",
       "help": "Move archives older than N days to cold/ subfolder (0 to disable)"
+    },
+    "subagentSeed": {
+      "label": "Subagent seeding",
+      "help": "Give subagents parent context so they understand the broader task"
+    },
+    "subagentRecovery": {
+      "label": "Subagent recovery",
+      "help": "Pull completed subagent results back into parent state"
     }
   }
 }

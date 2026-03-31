@@ -708,6 +708,71 @@ ${truncate(lastAssistant, 500)}
 `;
 }
 
+/**
+ * Detect if the current session is a subagent by checking the session key format.
+ * Subagent session keys follow: agent:<agentId>:subagent:<uuid>
+ */
+function isSubagentSession(ctx) {
+  const key = ctx?.sessionKey || ctx?.SessionKey || "";
+  return /^agent:[^:]+:subagent:/.test(key);
+}
+
+/**
+ * Extract the parent agent ID from a subagent session key.
+ * Session key format: agent:<parentAgentId>:subagent:<uuid>
+ * Returns null if not a subagent key.
+ */
+function parseParentAgentId(sessionKey) {
+  const match = sessionKey?.match(/^agent:([^:]+):subagent:/);
+  return match?.[1] || null;
+}
+
+/**
+ * Resolve workspace directory for a given agent ID.
+ * Searches the OpenClaw config for agent workspace mappings.
+ * Falls back to ~/.openclaw/workspace/main for the "main" agent,
+ * or ~/.openclaw/workspaces/<agentId> for named agents.
+ */
+function resolveAgentWorkspace(agentId) {
+  if (!agentId) return null;
+
+  const base = process.env.OPENCLAW_HOME || path.join(process.env.HOME || "/tmp", ".openclaw");
+
+  // Try to read config for explicit workspace mapping
+  try {
+    const configPath = path.join(base, "openclaw.json");
+    const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    const agents = config?.agents?.list || [];
+    const entry = agents.find(a => a.id === agentId || a.name === agentId);
+    if (entry?.workspace) return entry.workspace;
+
+    // Check defaults
+    if (agentId === "main") {
+      return config?.agents?.defaults?.workspace || path.join(base, "workspace", "main");
+    }
+  } catch {}
+
+  // Fallback heuristics
+  if (agentId === "main") return path.join(base, "workspace", "main");
+
+  // Named agents typically use ~/.openclaw/workspaces/<agentId>
+  const namedWs = path.join(base, "workspaces", agentId);
+  if (fs.existsSync(namedWs)) return namedWs;
+
+  return null;
+}
+
+/**
+ * Extract the Unsurfaced Results section from a state markdown file.
+ * Returns the raw text content of the section, or null if empty/placeholder.
+ */
+function extractUnsurfacedResults(md) {
+  if (!md) return null;
+  const section = extractSection(md, "Unsurfaced Results");
+  if (!section || !isMeaningful(section)) return null;
+  return section;
+}
+
 // ---------------------------------------------------------------------------
 // Plugin Definition
 // ---------------------------------------------------------------------------
@@ -747,6 +812,36 @@ const plugin = {
         if (history) {
           parts.push(history);
           log.info?.("[memory-continuity] Injected relevant history context");
+        }
+      }
+
+      // Parent seed: if this is a subagent, inject parent's working state
+      if (config.subagentSeed !== false && isSubagentSession(_ctx)) {
+        try {
+          const sessionKey = _ctx?.sessionKey || _ctx?.SessionKey || "";
+          const parentAgentId = parseParentAgentId(sessionKey);
+          if (parentAgentId) {
+            const parentWs = resolveAgentWorkspace(parentAgentId);
+            if (parentWs) {
+              const parentStatePath = resolveStatePath(parentWs);
+              const parentMd = parentStatePath ? readFile(parentStatePath) : null;
+              if (parentMd) {
+                const parentSnapshot = buildSnapshot(parentMd);
+                if (parentSnapshot) {
+                  parts.push(
+                    "=== PARENT AGENT CONTEXT ===\n" +
+                    "The following is the parent agent's working state. " +
+                    "Use this to understand the broader task context.\n" +
+                    parentSnapshot +
+                    "\n=== END PARENT CONTEXT ==="
+                  );
+                  log.info?.("[memory-continuity] Injected parent state seed for subagent");
+                }
+              }
+            }
+          }
+        } catch (err) {
+          log.warn?.("[memory-continuity] Parent seed failed (non-fatal): " + err.message);
         }
       }
 
@@ -895,6 +990,116 @@ const plugin = {
         log.info?.("[memory-continuity] Created initial CURRENT_STATE.md");
       }
     }, { priority: 90 });
+
+    // ------------------------------------------------------------------
+    // HOOK 6: subagent_ended — recover child's unsurfaced results
+    // ------------------------------------------------------------------
+    api.on("subagent_ended", async (event, _ctx) => {
+      const config = getConfig();
+      if (config.subagentRecovery === false) return;
+
+      const parentWs = _ctx?.workspaceDir;
+      if (!parentWs) return;
+
+      const childSessionKey = event?.childSessionKey || _ctx?.childSessionKey;
+      if (!childSessionKey) {
+        log.info?.("[memory-continuity] subagent_ended: no childSessionKey, skipping");
+        return;
+      }
+
+      // Only process successful completions (not kills/errors)
+      const outcome = event?.outcome || "";
+      const reason = event?.reason || "";
+      if (outcome === "error" || reason === "killed" || reason === "spawn-failed") {
+        log.info?.("[memory-continuity] subagent_ended: child ended with " + (reason || outcome) + ", skipping recovery");
+        return;
+      }
+
+      try {
+        // Parse child agent ID from session key
+        const childMatch = childSessionKey.match(/^agent:([^:]+)/);
+        const childAgentId = childMatch?.[1];
+        if (!childAgentId) return;
+
+        const childWs = resolveAgentWorkspace(childAgentId);
+        if (!childWs) {
+          log.info?.("[memory-continuity] subagent_ended: cannot resolve child workspace for " + childAgentId);
+          return;
+        }
+
+        // Read child's state
+        const childStatePath = resolveStatePath(childWs);
+        const childMd = childStatePath ? readFile(childStatePath) : null;
+        if (!childMd) return;
+
+        // Extract unsurfaced results from child
+        const childUnsurfaced = extractUnsurfacedResults(childMd);
+        if (!childUnsurfaced) {
+          log.info?.("[memory-continuity] subagent_ended: no unsurfaced results in child state");
+          return;
+        }
+
+        // Also extract child's objective for context
+        const childObjective = extractSection(childMd, "Objective");
+
+        // Read parent's current state
+        const parentStatePath = resolveStatePath(parentWs);
+        if (!parentStatePath) return;
+
+        let parentMd = readFile(parentStatePath);
+        if (!parentMd) {
+          parentMd = STATE_TEMPLATE;
+        }
+
+        // Build the recovery note
+        const now = new Date().toISOString();
+        const recoveryNote = [
+          `[${now}] Subagent "${childAgentId}" completed.`,
+          childObjective ? `  Task: ${childObjective.split("\n")[0].slice(0, 120)}` : "",
+          `  Result: ${childUnsurfaced.split("\n")[0].slice(0, 200)}`,
+        ].filter(Boolean).join("\n");
+
+        // Merge into parent's Unsurfaced Results section
+        const existingUnsurfaced = extractSection(parentMd, "Unsurfaced Results");
+        const mergedUnsurfaced = isMeaningful(existingUnsurfaced)
+          ? existingUnsurfaced + "\n" + recoveryNote
+          : recoveryNote;
+
+        // Token-aware truncation of merged results
+        if (estimateTokens(mergedUnsurfaced) > 500) {
+          const lines = mergedUnsurfaced.split("\n");
+          let kept = [];
+          let tokens = 0;
+          for (let i = lines.length - 1; i >= 0; i--) {
+            const lineTokens = estimateTokens(lines[i]);
+            if (tokens + lineTokens > 500) break;
+            kept.unshift(lines[i]);
+            tokens += lineTokens;
+          }
+          const truncated = kept.join("\n");
+          parentMd = parentMd.replace(
+            /## Unsurfaced Results\n[\s\S]*?(?=\n## |\n$|$)/,
+            "## Unsurfaced Results\n" + truncated
+          );
+        } else {
+          parentMd = parentMd.replace(
+            /## Unsurfaced Results\n[\s\S]*?(?=\n## |\n$|$)/,
+            "## Unsurfaced Results\n" + mergedUnsurfaced
+          );
+        }
+
+        // Update the timestamp
+        parentMd = parentMd.replace(
+          /^> Last updated:.*$/m,
+          `> Last updated: ${now}`
+        );
+
+        writeFile(parentStatePath, parentMd);
+        log.info?.("[memory-continuity] Recovered unsurfaced results from subagent " + childAgentId);
+      } catch (err) {
+        log.warn?.("[memory-continuity] subagent_ended recovery failed (non-fatal): " + err.message);
+      }
+    }, { priority: 50 });
 
     // ------------------------------------------------------------------
     // SERVICE: mc:recall — programmatic interface for other plugins

@@ -2,7 +2,7 @@
   "id": "mc",
   "name": "Memory Continuity Commands",
   "description": "Slash commands for Memory Continuity — /mc state, /mc history, /mc search, /mc settings, etc.",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "author": { "name": "dtzp555-max", "url": "https://github.com/dtzp555-max" },
   "license": "MIT",
   "category": "commands",

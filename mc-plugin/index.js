@@ -780,6 +780,40 @@ function cmdRecall(args) {
   return out.trimEnd();
 }
 
+function cmdSubagents(args) {
+  const agents = discoverAgents();
+  if (agents.length === 0) return "No agents with memory found.";
+
+  let out = "Subagent State Overview\n";
+  out += "═══════════════════════\n\n";
+
+  for (const { name, memDir } of agents) {
+    const statePath = path.join(memDir, "CURRENT_STATE.md");
+    const content = readFile(statePath);
+    if (!content) {
+      out += `[${name}] No state file\n\n`;
+      continue;
+    }
+
+    const objMatch = content.match(/## Objective\n([\s\S]*?)(?=\n## )/);
+    const unsurfMatch = content.match(/## Unsurfaced Results\n([\s\S]*?)(?=\n## |$)/);
+    const updatedMatch = content.match(/^> Last updated:\s*(.+)$/m);
+
+    const objective = objMatch?.[1]?.trim() || "None";
+    const unsurfaced = unsurfMatch?.[1]?.trim() || "None";
+    const updated = updatedMatch?.[1]?.trim() || "unknown";
+
+    out += `[${name}] Updated: ${updated}\n`;
+    out += `  Objective: ${truncate(objective.split("\n")[0], 80)}\n`;
+    if (unsurfaced !== "None") {
+      out += `  Unsurfaced: ${truncate(unsurfaced.split("\n")[0], 80)}\n`;
+    }
+    out += "\n";
+  }
+
+  return out.trimEnd();
+}
+
 function cmdHelp() {
   return `MC Commands (Memory Continuity)
 ─────────────────────────────
@@ -796,7 +830,8 @@ function cmdHelp() {
 /mc settings <k> <v>    Update a setting
 /mc compact [agent]     Compress state file
 /mc export [agent|all]  Export (--from/--to/--tag)
-/mc recall <topic>      Find relevant history by topic`;
+/mc recall <topic>      Find relevant history by topic
+/mc subagents           Subagent state overview across workspaces`;
 }
 
 // ── Plugin entry point ──────────────────────────────────────────────────
@@ -831,6 +866,7 @@ export default function (api) {
           case "tags":     text = cmdTags(subargs || null); break;
           case "summary":  text = cmdSummary(subargs || null); break;
           case "recall":   text = cmdRecall(subargs); break;
+          case "subagents": text = cmdSubagents(subargs || null); break;
           case "help": case "--help": case "-h": case "":
             text = cmdHelp(); break;
           default:

@@ -1,6 +1,6 @@
 {
   "name": "mc-plugin",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Slash commands for Memory Continuity — /mc state, /mc history, /mc search, etc.",
   "main": "index.js",
   "type": "module",
