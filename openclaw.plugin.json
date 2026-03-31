@@ -2,7 +2,7 @@
   "id": "memory-continuity",
   "name": "Memory Continuity",
   "description": "Preserves working state across /new, reset, compaction, and gateway restarts via a simple markdown checkpoint file.",
-  "version": "5.0.0",
+  "version": "5.0.1",
   "author": { "name": "dtzp555-max", "url": "https://github.com/dtzp555-max" },
   "license": "MIT",
   "repository": "https://github.com/dtzp555-max/memory-continuity",

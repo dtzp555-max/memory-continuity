@@ -45,7 +45,8 @@ function estimateTokens(text) {
   return Math.ceil(cjkCount * 1.5) + Math.ceil(nonCjkLen / 4);
 }
 
-const STATE_TEMPLATE = `# Current State
+function stateTemplate() {
+  return `# Current State
 > Last updated: ${new Date().toISOString()}
 
 ## Objective
@@ -66,6 +67,7 @@ None
 ## Unsurfaced Results
 None
 `;
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -389,9 +391,11 @@ function generateWeeklySummary(workspaceDir, config = {}) {
   const prevMonday = new Date(now);
   prevMonday.setDate(prevMonday.getDate() - 7);
 
-  // ISO week number
-  const jan1 = new Date(prevMonday.getFullYear(), 0, 1);
-  const weekNum = Math.ceil(((prevMonday - jan1) / 86400000 + jan1.getDay() + 1) / 7);
+  // Correct ISO 8601 week number
+  const target = new Date(prevMonday.valueOf());
+  target.setDate(target.getDate() + 3 - ((target.getDay() + 6) % 7));
+  const jan4 = new Date(target.getFullYear(), 0, 4);
+  const weekNum = 1 + Math.round(((target - jan4) / 86400000 - 3 + ((jan4.getDay() + 6) % 7)) / 7);
   const weekLabel = `${prevMonday.getFullYear()}-W${pad(weekNum)}`;
 
   const weeklyDir = path.join(workspaceDir, "memory", "summaries", "weekly");
@@ -483,8 +487,9 @@ function updateTagIndex(workspaceDir, topic, dateStr) {
 
   for (const tag of tags) {
     const normalizedTag = tag.toLowerCase();
-    // Check if this tag+date combo already exists
-    if (existing.includes(`${normalizedTag}`) && existing.includes(dateStr)) continue;
+    // Check if this exact tag+date combo already exists under this tag's section
+    const tagSection = existing.match(new RegExp(`## ${normalizedTag.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\n([\\s\\S]*?)(?=\\n## |$)`));
+    if (tagSection && tagSection[1].includes(dateStr)) continue;
 
     // Find or create tag section
     const tagHeader = `## ${normalizedTag}`;
@@ -736,6 +741,9 @@ function parseParentAgentId(sessionKey) {
 function resolveAgentWorkspace(agentId) {
   if (!agentId) return null;
 
+  // Prevent path traversal via crafted agent IDs
+  if (!/^[\w-]+$/.test(agentId)) return null;
+
   const base = process.env.OPENCLAW_HOME || path.join(process.env.HOME || "/tmp", ".openclaw");
 
   // Try to read config for explicit workspace mapping
@@ -942,6 +950,7 @@ const plugin = {
 
       // Check ignore patterns — skip sessions matching cron/subagent noise
       const ignorePatterns = (config.ignorePatterns || [])
+        .filter(p => typeof p === "string" && p.length <= 100)
         .map(p => { try { return new RegExp(p, "i"); } catch { log.warn?.("[memory-continuity] ignorePatterns: invalid regex, skipping: " + p); return null; } })
         .filter(Boolean);
 
@@ -986,7 +995,7 @@ const plugin = {
       if (!statePath) return;
 
       if (!readFile(statePath)) {
-        writeFile(statePath, STATE_TEMPLATE);
+        writeFile(statePath, stateTemplate());
         log.info?.("[memory-continuity] Created initial CURRENT_STATE.md");
       }
     }, { priority: 90 });
@@ -1048,7 +1057,7 @@ const plugin = {
 
         let parentMd = readFile(parentStatePath);
         if (!parentMd) {
-          parentMd = STATE_TEMPLATE;
+          parentMd = stateTemplate();
         }
 
         // Build the recovery note

@@ -26,6 +26,7 @@ function discoverAgents() {
   // Sub-agent workspaces
   try {
     for (const d of fs.readdirSync(EXTRA_WS)) {
+      if (!/^[\w-]+$/.test(d)) continue;
       const memDir = path.join(EXTRA_WS, d, "memory");
       if (fs.existsSync(path.join(memDir, "CURRENT_STATE.md"))) {
         agents.push({ name: d, memDir });
@@ -233,7 +234,8 @@ function cmdSearch(args) {
     agent = null;
   }
 
-  const re = new RegExp(keyword, "gi");
+  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(escaped, "i");
   const results = [];
 
   const searchAgents = agent ? [{ name: agent, memDir: resolveMemDir(agent) }] : agents;
