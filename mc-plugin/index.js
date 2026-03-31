@@ -218,10 +218,9 @@ None
 }
 
 function cmdSearch(args) {
-  if (!args) return "Usage: /mc search <keyword> [agent]\nSearches current state + archives.";
+  if (!args) return "Usage: /mc search <keyword> [agent]\nSearches state, archives, sessions, and summaries.";
 
   const parts = args.trim().split(/\s+/);
-  // Last part might be an agent name
   let keyword, agent;
   const agents = discoverAgents();
   const agentNames = new Set(agents.map(a => a.name));
@@ -231,7 +230,7 @@ function cmdSearch(args) {
     keyword = parts.join(" ");
   } else {
     keyword = parts.join(" ");
-    agent = null; // search all
+    agent = null;
   }
 
   const re = new RegExp(keyword, "gi");
@@ -242,39 +241,85 @@ function cmdSearch(args) {
   for (const { name, memDir } of searchAgents) {
     if (!memDir) continue;
 
-    // Search current state
+    // 1. Search current state
     const state = readFile(path.join(memDir, "CURRENT_STATE.md"));
     if (state && re.test(state)) {
+      re.lastIndex = 0;
       const lines = state.split("\n").filter(l => re.test(l));
-      results.push({ agent: name, source: "CURRENT_STATE", matches: lines.slice(0, 3) });
+      results.push({ agent: name, source: "CURRENT_STATE", type: "state", matches: lines.slice(0, 3) });
     }
 
-    // Search archives
+    // 2. Search archives (most recent 30)
     const archiveDir = path.join(memDir, "session_archive");
     try {
       const files = fs.readdirSync(archiveDir).filter(f => f.endsWith(".md")).sort().reverse();
       for (const f of files.slice(0, 30)) {
+        re.lastIndex = 0;
         const content = readFile(path.join(archiveDir, f));
         if (content && re.test(content)) {
+          re.lastIndex = 0;
           const lines = content.split("\n").filter(l => re.test(l));
-          results.push({ agent: name, source: f.replace(".md", ""), matches: lines.slice(0, 2) });
+          results.push({ agent: name, source: f.replace(".md", ""), type: "archive", matches: lines.slice(0, 2) });
         }
       }
     } catch {}
+
+    // 3. Search session logs (most recent 14 days)
+    const sessionsDir = path.join(memDir, "sessions");
+    try {
+      const files = fs.readdirSync(sessionsDir).filter(f => f.endsWith(".md")).sort().reverse();
+      for (const f of files.slice(0, 14)) {
+        re.lastIndex = 0;
+        const content = readFile(path.join(sessionsDir, f));
+        if (content && re.test(content)) {
+          re.lastIndex = 0;
+          const lines = content.split("\n").filter(l => re.test(l));
+          results.push({ agent: name, source: f.replace(".md", ""), type: "session", matches: lines.slice(0, 2) });
+        }
+      }
+    } catch {}
+
+    // 4. Search summaries (daily + weekly)
+    for (const sub of ["daily", "weekly"]) {
+      const sumDir = path.join(memDir, "summaries", sub);
+      try {
+        const files = fs.readdirSync(sumDir).filter(f => f.endsWith(".md")).sort().reverse();
+        for (const f of files.slice(0, 10)) {
+          re.lastIndex = 0;
+          const content = readFile(path.join(sumDir, f));
+          if (content && re.test(content)) {
+            re.lastIndex = 0;
+            const lines = content.split("\n").filter(l => re.test(l));
+            results.push({ agent: name, source: f.replace(".md", ""), type: sub, matches: lines.slice(0, 2) });
+          }
+        }
+      } catch {}
+    }
   }
 
   if (!results.length) return `No matches for "${keyword}".`;
 
+  // Group by type for clearer output
   let out = `Search: "${keyword}" (${results.length} hits)\n`;
   out += "─────────────────────────────\n";
-  for (const r of results.slice(0, 15)) {
-    out += `[${r.agent}] ${r.source}\n`;
-    for (const line of r.matches) {
-      out += `  ${truncate(line.trim(), 80)}\n`;
+
+  const typeOrder = ["state", "archive", "session", "daily", "weekly"];
+  const typeLabels = { state: "State", archive: "Archive", session: "Session", daily: "Daily", weekly: "Weekly" };
+
+  for (const type of typeOrder) {
+    const group = results.filter(r => r.type === type);
+    if (group.length === 0) continue;
+
+    out += `\n[${typeLabels[type]}]\n`;
+    for (const r of group.slice(0, 5)) {
+      out += `  ${r.agent}/${r.source}\n`;
+      for (const line of r.matches) {
+        out += `    ${truncate(line.trim(), 75)}\n`;
+      }
     }
-    out += "\n";
+    if (group.length > 5) out += `  ... +${group.length - 5} more\n`;
   }
-  if (results.length > 15) out += `  ... and ${results.length - 15} more hits`;
+
   return out.trimEnd();
 }
 
