@@ -2,7 +2,7 @@
   "id": "memory-continuity",
   "name": "Memory Continuity",
   "description": "Preserves working state across /new, reset, compaction, and gateway restarts via a simple markdown checkpoint file.",
-  "version": "3.2.0",
+  "version": "3.3.0",
   "source": "https://github.com/dtzp555-max/memory-continuity",
   "configSchema": {
     "type": "object",
@@ -57,6 +57,11 @@
         "type": "number",
         "default": 3,
         "description": "Maximum number of relevant history items to inject"
+      },
+      "archiveDecayDays": {
+        "type": "number",
+        "default": 30,
+        "description": "Days before archives move to cold storage (0 = disabled)"
       }
     }
   },
@@ -100,6 +105,10 @@
     "maxRelevanceItems": {
       "label": "Max relevance items",
       "help": "How many related history entries to inject (2-5)"
+    },
+    "archiveDecayDays": {
+      "label": "Archive decay days",
+      "help": "Move archives older than N days to cold/ subfolder (0 to disable)"
     }
   }
 }

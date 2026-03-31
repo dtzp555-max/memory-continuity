@@ -589,6 +589,51 @@ function findRelevantHistory(workspaceDir, objective, maxItems = 3) {
   return lines.join("\n");
 }
 
+/**
+ * Move archives older than `decayDays` to a cold/ subdirectory.
+ * Files are preserved, not deleted — they just leave the active index.
+ */
+function decayOldArchives(workspaceDir, config = {}) {
+  const decayDays = config.archiveDecayDays ?? 30;
+  if (decayDays <= 0) return; // Disabled
+
+  const archiveDir = path.join(workspaceDir, "memory", "session_archive");
+  const coldDir = path.join(archiveDir, "cold");
+
+  let files;
+  try { files = fs.readdirSync(archiveDir).filter(f => f.endsWith(".md")); }
+  catch { return; }
+
+  const cutoff = Date.now() - (decayDays * 86400000);
+
+  let movedCount = 0;
+  for (const f of files) {
+    // Parse date from filename: YYYY-MM-DD_HH-MM.md
+    const dateMatch = f.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!dateMatch) continue;
+
+    const fileDate = new Date(
+      parseInt(dateMatch[1]),
+      parseInt(dateMatch[2]) - 1,
+      parseInt(dateMatch[3])
+    ).getTime();
+
+    if (fileDate < cutoff) {
+      fs.mkdirSync(coldDir, { recursive: true });
+      const src = path.join(archiveDir, f);
+      const dst = path.join(coldDir, f);
+      try {
+        // Move: copy then delete
+        fs.copyFileSync(src, dst);
+        fs.unlinkSync(src);
+        movedCount++;
+      } catch {}
+    }
+  }
+
+  return movedCount;
+}
+
 function extractStateFromMessages(messages) {
   if (!messages || messages.length === 0) return null;
 
@@ -819,6 +864,7 @@ const plugin = {
       // Generate daily summary for previous day if needed
       generateDailySummary(ws, config);
       generateWeeklySummary(ws, config);
+      decayOldArchives(ws, config);
 
       const existing = readFile(statePath);
       const newState = extractStateFromMessages(messages);
