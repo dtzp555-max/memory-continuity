@@ -2,7 +2,7 @@
   "id": "memory-continuity",
   "name": "Memory Continuity",
   "description": "Preserves working state across /new, reset, compaction, and gateway restarts via a simple markdown checkpoint file.",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "source": "https://github.com/dtzp555-max/memory-continuity",
   "configSchema": {
     "type": "object",
