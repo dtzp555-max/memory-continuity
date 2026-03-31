@@ -437,9 +437,22 @@ function cmdCompact(args) {
 }
 
 function cmdExport(args) {
-  const agent = args || "all";
-  const agents = agent === "all" ? discoverAgents() : [{ name: agent, memDir: resolveMemDir(agent) }];
+  const parts = (args || "").trim().split(/\s+/);
 
+  // Parse args: [agent|all] [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--tag #tag]
+  let agent = "all";
+  let fromDate = null;
+  let toDate = null;
+  let filterTag = null;
+
+  for (let i = 0; i < parts.length; i++) {
+    if (parts[i] === "--from" && parts[i + 1]) { fromDate = parts[++i]; continue; }
+    if (parts[i] === "--to" && parts[i + 1]) { toDate = parts[++i]; continue; }
+    if (parts[i] === "--tag" && parts[i + 1]) { filterTag = parts[++i].toLowerCase(); continue; }
+    if (parts[i] && !parts[i].startsWith("-")) agent = parts[i];
+  }
+
+  const agents = agent === "all" ? discoverAgents() : [{ name: agent, memDir: resolveMemDir(agent) }];
   if (agents.length === 0 || !agents[0]?.memDir) return `Agent "${agent}" not found.`;
 
   const exportDir = path.join(BASE, "exports");
@@ -450,7 +463,25 @@ function cmdExport(args) {
   const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}`;
   const exportFile = path.join(exportDir, `mc-export-${stamp}.md`);
 
-  let content = `# Memory Continuity Export\n> Exported: ${now.toISOString()}\n\n`;
+  let content = `# Memory Continuity Export\n> Exported: ${now.toISOString()}\n`;
+  if (fromDate || toDate) content += `> Date range: ${fromDate || "start"} to ${toDate || "now"}\n`;
+  if (filterTag) content += `> Tag filter: ${filterTag}\n`;
+  content += "\n";
+
+  const matchesDateRange = (filename) => {
+    if (!fromDate && !toDate) return true;
+    const dateMatch = filename.match(/(\d{4}-\d{2}-\d{2})/);
+    if (!dateMatch) return true; // Include files without dates
+    const fileDate = dateMatch[1];
+    if (fromDate && fileDate < fromDate) return false;
+    if (toDate && fileDate > toDate) return false;
+    return true;
+  };
+
+  const matchesTag = (text) => {
+    if (!filterTag) return true;
+    return text.toLowerCase().includes(filterTag);
+  };
 
   for (const { name, memDir } of agents) {
     if (!memDir) continue;
@@ -458,27 +489,55 @@ function cmdExport(args) {
 
     // Current state
     const state = readFile(path.join(memDir, "CURRENT_STATE.md"));
-    if (state) {
+    if (state && matchesTag(state)) {
       content += `## Current State\n\n${state}\n\n`;
     }
 
-    // Archives
+    // Archives (filtered)
     const archiveDir = path.join(memDir, "session_archive");
     try {
-      const files = fs.readdirSync(archiveDir).filter(f => f.endsWith(".md")).sort().reverse();
+      const files = fs.readdirSync(archiveDir).filter(f => f.endsWith(".md") && matchesDateRange(f)).sort().reverse();
       if (files.length) {
         content += `## Archives (${files.length})\n\n`;
         for (const f of files) {
           const ac = readFile(path.join(archiveDir, f));
-          if (ac) content += `### ${f.replace(".md", "")}\n\n${ac}\n\n`;
+          if (ac && matchesTag(ac)) content += `### ${f.replace(".md", "")}\n\n${ac}\n\n`;
         }
       }
     } catch {}
+
+    // Session logs (filtered)
+    const sessionsDir = path.join(memDir, "sessions");
+    try {
+      const files = fs.readdirSync(sessionsDir).filter(f => f.endsWith(".md") && matchesDateRange(f)).sort().reverse();
+      if (files.length) {
+        content += `## Session Logs (${files.length} days)\n\n`;
+        for (const f of files) {
+          const sc = readFile(path.join(sessionsDir, f));
+          if (sc && matchesTag(sc)) content += `### ${f.replace(".md", "")}\n\n${sc}\n\n`;
+        }
+      }
+    } catch {}
+
+    // Summaries (filtered)
+    for (const sub of ["daily", "weekly"]) {
+      const sumDir = path.join(memDir, "summaries", sub);
+      try {
+        const files = fs.readdirSync(sumDir).filter(f => f.endsWith(".md") && matchesDateRange(f)).sort().reverse();
+        if (files.length) {
+          content += `## ${sub.charAt(0).toUpperCase() + sub.slice(1)} Summaries (${files.length})\n\n`;
+          for (const f of files) {
+            const sm = readFile(path.join(sumDir, f));
+            if (sm && matchesTag(sm)) content += `### ${f.replace(".md", "")}\n\n${sm}\n\n`;
+          }
+        }
+      } catch {}
+    }
   }
 
   fs.writeFileSync(exportFile, content, "utf8");
-  const sizeMB = (Buffer.byteLength(content) / 1024).toFixed(1);
-  return `✓ Exported to:\n  ${exportFile}\n  ${agents.length} agent(s), ${sizeMB} KB`;
+  const sizeKB = (Buffer.byteLength(content) / 1024).toFixed(1);
+  return `✓ Exported to:\n  ${exportFile}\n  ${agents.length} agent(s), ${sizeKB} KB`;
 }
 
 function cmdSessions(args) {
@@ -608,6 +667,119 @@ function cmdSummary(args) {
   return out.trimEnd();
 }
 
+function cmdRecall(args) {
+  if (!args) return "Usage: /mc recall <topic>\nSearches history and returns the most relevant entries for context injection.";
+
+  const topic = args.trim();
+  const agents = discoverAgents();
+  if (agents.length === 0) return "No agents with memory found.";
+
+  // Search across all agents' session logs and summaries
+  const words = topic
+    .replace(/[^\w\u4e00-\u9fff\u3400-\u4dbf-]/g, " ")
+    .split(/\s+/)
+    .filter(w => w.length > 2)
+    .map(w => w.toLowerCase());
+
+  if (words.length === 0) return "Need more specific topic keywords.";
+
+  const scored = [];
+
+  for (const { name, memDir } of agents) {
+    if (!memDir) continue;
+
+    // Search session logs
+    const sessionsDir = path.join(memDir, "sessions");
+    try {
+      const files = fs.readdirSync(sessionsDir).filter(f => f.endsWith(".md")).sort().reverse();
+      for (const f of files.slice(0, 14)) {
+        const content = readFile(path.join(sessionsDir, f));
+        if (!content) continue;
+        const entries = content.split(/^### /gm).filter(e => e.trim());
+        for (const entry of entries) {
+          let score = 0;
+          const lower = entry.toLowerCase();
+          for (const w of words) {
+            if (lower.includes(w)) score++;
+          }
+          if (score >= 2) {
+            const topicMatch = entry.match(/\*\*Topic:\*\*\s*(.+)/);
+            const time = entry.match(/^(\d{2}:\d{2})/)?.[1] || "";
+            scored.push({
+              agent: name,
+              date: `${f.replace(".md", "")} ${time}`,
+              score,
+              text: topicMatch?.[1] || entry.split("\n")[0].slice(0, 80)
+            });
+          }
+        }
+      }
+    } catch {}
+
+    // Search daily summaries
+    const dailyDir = path.join(memDir, "summaries", "daily");
+    try {
+      const files = fs.readdirSync(dailyDir).filter(f => f.endsWith(".md")).sort().reverse();
+      for (const f of files.slice(0, 14)) {
+        const content = readFile(path.join(dailyDir, f));
+        if (!content) continue;
+        let score = 0;
+        const lower = content.toLowerCase();
+        for (const w of words) {
+          if (lower.includes(w)) score++;
+        }
+        if (score >= 2) {
+          const topicsMatch = content.match(/## (?:Key )?Topics\n([\s\S]*?)(?:\n##|$)/);
+          const topics = topicsMatch ? topicsMatch[1].trim().split("\n").slice(0, 3).join("; ") : "";
+          scored.push({
+            agent: name,
+            date: f.replace(".md", ""),
+            score,
+            text: topics || "(daily summary)"
+          });
+        }
+      }
+    } catch {}
+
+    // Search archives
+    const archiveDir = path.join(memDir, "session_archive");
+    try {
+      const files = fs.readdirSync(archiveDir).filter(f => f.endsWith(".md")).sort().reverse();
+      for (const f of files.slice(0, 20)) {
+        const content = readFile(path.join(archiveDir, f));
+        if (!content) continue;
+        let score = 0;
+        const lower = content.toLowerCase();
+        for (const w of words) {
+          if (lower.includes(w)) score++;
+        }
+        if (score >= 2) {
+          const objMatch = content.match(/## Objective\n(.+)/);
+          scored.push({
+            agent: name,
+            date: f.replace(".md", "").replace(/_/g, " "),
+            score,
+            text: objMatch?.[1]?.slice(0, 80) || "(archived state)"
+          });
+        }
+      }
+    } catch {}
+  }
+
+  if (scored.length === 0) return `No relevant history found for "${topic}".`;
+
+  scored.sort((a, b) => b.score - a.score);
+  const top = scored.slice(0, 10);
+
+  let out = `Recall: "${topic}" (${scored.length} matches, showing top ${top.length})\n`;
+  out += "─────────────────────────────\n";
+  for (const item of top) {
+    out += `[${item.agent}] ${item.date}  (score: ${item.score})\n`;
+    out += `  ${truncate(item.text, 80)}\n\n`;
+  }
+  return out.trimEnd();
+}
+
 function cmdHelp() {
   return `MC Commands (Memory Continuity)
 ─────────────────────────────
@@ -623,7 +795,8 @@ function cmdHelp() {
 /mc settings            View MC settings
 /mc settings <k> <v>    Update a setting
 /mc compact [agent]     Compress state file
-/mc export [agent|all]  Export memory to file`;
+/mc export [agent|all]  Export (--from/--to/--tag)
+/mc recall <topic>      Find relevant history by topic`;
 }
 
 // ── Plugin entry point ──────────────────────────────────────────────────
@@ -657,6 +830,7 @@ export default function (api) {
           case "export":    text = cmdExport(subargs || null); break;
           case "tags":     text = cmdTags(subargs || null); break;
           case "summary":  text = cmdSummary(subargs || null); break;
+          case "recall":   text = cmdRecall(subargs); break;
           case "help": case "--help": case "-h": case "":
             text = cmdHelp(); break;
           default:
