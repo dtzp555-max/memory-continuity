@@ -42,6 +42,11 @@
         "type": "number",
         "default": 3,
         "description": "Number of recent critical message pairs to protect during compaction"
+      },
+      "summaryEnabled": {
+        "type": "boolean",
+        "default": true,
+        "description": "Generate daily and weekly summaries from session logs"
       }
     }
   },
@@ -73,6 +78,10 @@
     "tailProtectCount": {
       "label": "Tail protect count",
       "help": "Keep N recent user/assistant pairs visible after compaction"
+    },
+    "summaryEnabled": {
+      "label": "Summary generation",
+      "help": "Auto-generate daily/weekly summaries from session logs"
     }
   }
 }

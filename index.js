@@ -301,6 +301,73 @@ function extractTailMessages(messages, count = 3) {
   return lines.join("\n");
 }
 
+/**
+ * Generate a daily summary from the previous day's session log.
+ * Only runs when today differs from the last summary date.
+ * Output: memory/summaries/daily/YYYY-MM-DD.md
+ */
+function generateDailySummary(workspaceDir, config = {}) {
+  if (config.summaryEnabled === false) return;
+
+  const pad = (n) => String(n).padStart(2, "0");
+  const now = new Date();
+  const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+
+  // Check yesterday's date
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yStr = `${yesterday.getFullYear()}-${pad(yesterday.getMonth() + 1)}-${pad(yesterday.getDate())}`;
+
+  const summaryDir = path.join(workspaceDir, "memory", "summaries", "daily");
+  const summaryFile = path.join(summaryDir, `${yStr}.md`);
+
+  // Skip if summary already exists for yesterday
+  if (fs.existsSync(summaryFile)) return;
+
+  // Read yesterday's session log
+  const sessionFile = path.join(workspaceDir, "memory", "sessions", `${yStr}.md`);
+  const sessionContent = readFile(sessionFile);
+  if (!sessionContent) return; // No sessions yesterday
+
+  // Parse session entries
+  const entries = sessionContent.split(/^### /gm).filter(e => e.trim());
+  if (entries.length === 0) return;
+
+  const topics = [];
+  let totalUser = 0;
+  let totalAssistant = 0;
+  let totalTokens = 0;
+
+  for (const entry of entries) {
+    const topicMatch = entry.match(/\*\*Topic:\*\*\s*(.+)/);
+    const msgMatch = entry.match(/\*\*Messages:\*\*\s*(\d+)\s*user\s*\/\s*(\d+)\s*assistant/);
+    const tokenMatch = entry.match(/\*\*Est\. tokens:\*\*\s*~(\d+)/);
+
+    if (topicMatch) topics.push(topicMatch[1].trim());
+    if (msgMatch) {
+      totalUser += parseInt(msgMatch[1]);
+      totalAssistant += parseInt(msgMatch[2]);
+    }
+    if (tokenMatch) totalTokens += parseInt(tokenMatch[1]);
+  }
+
+  // Build daily summary
+  const summary = [
+    `# Daily Summary — ${yStr}`,
+    "",
+    `**Sessions:** ${entries.length}`,
+    `**Messages:** ${totalUser} user / ${totalAssistant} assistant`,
+    `**Est. tokens:** ~${totalTokens}`,
+    "",
+    "## Topics",
+    ...topics.map((t, i) => `${i + 1}. ${t}`),
+    "",
+  ].join("\n");
+
+  fs.mkdirSync(summaryDir, { recursive: true });
+  fs.writeFileSync(summaryFile, summary, "utf8");
+}
+
 function extractStateFromMessages(messages) {
   if (!messages || messages.length === 0) return null;
 
@@ -513,6 +580,9 @@ const plugin = {
 
       // Write session log entry
       writeSessionLog(ws, messages, config);
+
+      // Generate daily summary for previous day if needed
+      generateDailySummary(ws, config);
 
       const existing = readFile(statePath);
       const newState = extractStateFromMessages(messages);
